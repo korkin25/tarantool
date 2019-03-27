@@ -183,6 +183,7 @@ struct Mem {
 	union MemValue {
 		double r;	/* Real value used when MEM_Real is set in flags */
 		i64 i;		/* Integer value used when MEM_Int is set in flags */
+		u64 u;		/* Integer value used when MEM_UInt is set in flags */
 		bool b;         /* Boolean value used when MEM_Bool is set in flags */
 		int nZero;	/* Used when bit MEM_Zero is set in flags */
 		void *p;	/* Generic pointer */
@@ -234,7 +235,7 @@ struct Mem {
 #define MEM_Frame     0x0080	/* Value is a VdbeFrame object */
 #define MEM_Undefined 0x0100	/* Value is undefined */
 #define MEM_Cleared   0x0200	/* NULL set by OP_Null, not from data */
-#define MEM_TypeMask  0x83ff	/* Mask of type bits */
+#define MEM_TypeMask  0x283ff	/* Mask of type bits */
 
 /* Whenever Mem contains a valid string or blob representation, one of
  * the following flags must be set to determine the memory management
@@ -248,6 +249,8 @@ struct Mem {
 #define MEM_Agg       0x4000	/* Mem.z points to an agg function context */
 #define MEM_Zero      0x8000	/* Mem.i contains count of 0s appended to blob */
 #define MEM_Subtype   0x10000	/* Mem.eSubtype is valid */
+#define MEM_UInt      0x20000	/* Value is unsigned integer. */
+
 #ifdef SQL_OMIT_INCRBLOB
 #undef MEM_Zero
 #define MEM_Zero 0x0000
@@ -259,7 +262,9 @@ struct Mem {
  * auxiliary flags.
  */
 enum {
-	MEM_PURE_TYPE_MASK = 0x1f
+	MEM_PURE_TYPE_MASK = MEM_Null | MEM_Str | MEM_Int |
+			     MEM_Real | MEM_Blob | MEM_Bool |
+			     MEM_UInt
 };
 
 
@@ -273,7 +278,7 @@ enum {
  * Clear any existing type flags from a Mem and replace them with f
  */
 #define MemSetTypeFlag(p, f) \
-   ((p)->flags = ((p)->flags&~(MEM_TypeMask|MEM_Zero))|f)
+   ((p)->flags = ((p)->flags&~(MEM_TypeMask|MEM_Zero|MEM_UInt))|f)
 
 /*
  * Return true if a memory cell is not marked as invalid.  This macro
@@ -475,6 +480,7 @@ void sqlVdbeMemMove(Mem *, Mem *);
 int sqlVdbeMemNulTerminate(Mem *);
 int sqlVdbeMemSetStr(Mem *, const char *, int, u8, void (*)(void *));
 void sqlVdbeMemSetInt64(Mem *, i64);
+void sqlVdbeMemSetUInt64(Mem *, u64);
 #ifdef SQL_OMIT_FLOATING_POINT
 #define sqlVdbeMemSetDouble sqlVdbeMemSetInt64
 #else
@@ -485,7 +491,7 @@ void sqlVdbeMemSetNull(Mem *);
 void sqlVdbeMemSetZeroBlob(Mem *, int);
 int sqlVdbeMemMakeWriteable(Mem *);
 int sqlVdbeMemStringify(Mem *, u8);
-int sqlVdbeIntValue(Mem *, int64_t *);
+int sqlVdbeIntValue(Mem *, int64_t *, bool *);
 int sqlVdbeMemIntegerify(Mem *, bool is_forced);
 int sqlVdbeRealValue(Mem *, double *);
 int mem_apply_integer_type(Mem *);

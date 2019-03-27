@@ -452,6 +452,9 @@ sql_column_subtype(struct sql_stmt *stmt, int i);
 sql_int64
 sql_value_int64(sql_value *);
 
+sql_uint64
+sql_value_uint64(sql_value *);
+
 const unsigned char *
 sql_value_text(sql_value *);
 
@@ -494,6 +497,9 @@ sql_result_int(sql_context *, int);
 
 void
 sql_result_int64(sql_context *, sql_int64);
+
+void
+sql_result_uint64(sql_context *, sql_uint64);
 
 void
 sql_result_null(sql_context *);
@@ -579,6 +585,9 @@ sql_column_int(sql_stmt *, int iCol);
 sql_int64
 sql_column_int64(sql_stmt *, int iCol);
 
+sql_uint64
+sql_column_uint64(sql_stmt *, int iCol);
+
 const unsigned char *
 sql_column_text(sql_stmt *,
 		    int iCol);
@@ -641,6 +650,7 @@ enum sql_type {
 	SQL_TEXT = 3,
 	SQL_BLOB = 4,
 	SQL_NULL = 5,
+	SQL_UNSIGNED = 6
 };
 
 /**
@@ -843,10 +853,6 @@ sql_limit(sql *, int id, int newVal);
 #define SQL_SYNC_FULL          0x00003
 #define SQL_SYNC_DATAONLY      0x00010
 
-int
-sql_uri_boolean(const char *zFile,
-		    const char *zParam, int bDefault);
-
 extern char *
 sql_temp_directory;
 
@@ -902,6 +908,9 @@ sql_bind_int(sql_stmt *, int, int);
 
 int
 sql_bind_int64(sql_stmt *, int, sql_int64);
+
+int
+sql_bind_uint64(sql_stmt *, int, sql_uint64);
 
 int
 sql_bind_null(sql_stmt *, int);
@@ -4275,20 +4284,20 @@ field_type_sequence_dup(struct Parse *parse, enum field_type *types,
 			uint32_t len);
 
 /**
- * Convert z to a 64-bit signed integer.  z must be decimal. This
- * routine does *not* accept hexadecimal notation.
+ * Converts z to a 64-bit signed or unsigned integer.
+ * z must be decimal. This routine does *not* accept
+ * hexadecimal notation.
  *
  * If the z value is representable as a 64-bit twos-complement
  * integer, then write that value into *val and return 0.
  *
- * If z is exactly 9223372036854775808, return 2.  This special
- * case is broken out because while 9223372036854775808 cannot be
- * a signed 64-bit integer, its negative -9223372036854775808 can
- * be.
+ * If z is a number in the range
+ * [9223372036854775808, 18446744073709551615] function returns
+ * 0 and is_unsigned = true, the result must be treated as unsigned.
  *
- * If z is too big for a 64-bit integer and is not
- * 9223372036854775808  or if z contains any non-numeric text,
- * then return 1.
+ * If z is too big for a 64-bit unsigned integer
+ * or if z contains any non-numeric text,
+ * then return -1.
  *
  * length is the number of bytes in the string (bytes, not
  * characters). The string is not necessarily zero-terminated.
@@ -4296,16 +4305,15 @@ field_type_sequence_dup(struct Parse *parse, enum field_type *types,
  *
  * @param z String being parsed.
  * @param[out] val Output integer value.
+ * @param[out] is_unsigned is true is returned value is positive
+ * and its value is in the range [INT64_MAX+1, UINT64_MAX]
  * @param length String length in bytes.
  * @retval
- *     0    Successful transformation.  Fits in a 64-bit signed
- *          integer.
- *     1    Integer too large for a 64-bit signed integer or is
- *          malformed
- *     2    Special case of 9223372036854775808
+ *     0	Successful transformation.
+ *     -1	An error occurred.
  */
 int
-sql_atoi64(const char *z, int64_t *val, int length);
+sql_atoi64(const char *z, int64_t *val, bool *is_unsigned, int length);
 
 /**
  * Transform a UTF-8 integer literal, in either decimal or
@@ -4313,14 +4321,17 @@ sql_atoi64(const char *z, int64_t *val, int length);
  * accepts hexadecimal literals, whereas sql_atoi64() does not.
  *
  * @param z Literal being parsed.
+ * @param is_neg Sign of the number being converted
  * @param[out] val Parsed value.
+ * @param[out] is_unsigned is true is returned value is positive
+ * and its value is in the range [INT64_MAX+1, UINT64_MAX]
  * @retval
- *     0    Successful transformation.  Fits in a 64-bit signed integer.
- *     1    Integer too large for a 64-bit signed integer or is malformed
- *     2    Special case of 9223372036854775808
+ *     0	Successful transformation.
+ *     -1	An error occurred.
  */
 int
-sql_dec_or_hex_to_i64(const char *z, int64_t *val);
+sql_dec_or_hex_to_i64(const char *z, bool is_neg, int64_t *val,
+		      bool *is_unsigned);
 
 void sqlErrorWithMsg(sql *, int, const char *, ...);
 void sqlError(sql *, int);
@@ -4358,15 +4369,32 @@ Expr *sqlExprAddCollateString(Parse *, Expr *, const char *);
 Expr *sqlExprSkipCollate(Expr *);
 int sqlCheckIdentifierName(Parse *, char *);
 void sqlVdbeSetChanges(sql *, int);
-int sqlAddInt64(i64 *, i64);
-int sqlSubInt64(i64 *, i64);
-int sqlMulInt64(i64 *, i64);
+
+enum arithmetic_result {
+	/* The result fits the signed 64-bit integer */
+	ATHR_SIGNED,
+	/* The result is positive and fits the
+	 * unsigned 64-bit integer
+	 */
+	ATHR_UNSIGNED,
+	/* The operation causes an overflow */
+	ATHR_OVERFLOW,
+	/* The operation causes division by zero */
+	ATHR_DIVBYZERO
+};
+
+enum arithmetic_result
+sqlAddInt64(i64 *, bool, i64, bool);
+enum arithmetic_result
+sqlSubInt64(i64 *, bool, i64, bool);
+enum arithmetic_result
+sqlMulInt64(i64 *, bool, i64, bool);
+enum arithmetic_result
+sqlDivInt64(i64 *, bool, i64, bool);
+enum arithmetic_result
+sqlRemInt64(i64 *, bool, i64, bool);
+
 int sqlAbsInt32(int);
-#ifdef SQL_ENABLE_8_3_NAMES
-void sqlFileSuffix3(const char *, char *);
-#else
-#define sqlFileSuffix3(X,Y)
-#endif
 u8 sqlGetBoolean(const char *z, u8);
 
 const void *sqlValueText(sql_value *);

@@ -70,7 +70,7 @@ struct VdbeOp {
 		int i;		/* Integer value if p4type==P4_INT32 */
 		void *p;	/* Generic pointer */
 		char *z;	/* Pointer to data for string (char array) types */
-		i64 *pI64;	/* Used when p4type is P4_INT64 */
+		i64 *pI64;	/* Used when p4type is P4_INT64 or P4_UINT64 */
 		double *pReal;	/* Used when p4type is P4_REAL */
 		FuncDef *pFunc;	/* Used when p4type is P4_FUNCDEF */
 		sql_context *pCtx;	/* Used when p4type is P4_FUNCCTX */
@@ -131,6 +131,7 @@ struct SubProgram {
 #define P4_INTARRAY (-12)	/* P4 is a vector of 32-bit integers */
 #define P4_SUBPROGRAM  (-13)	/* P4 is a pointer to a SubProgram structure */
 #define P4_ADVANCE  (-14)	/* P4 is a pointer to BtreeNext() or BtreePrev() */
+#define P4_UINT64   (-15)	/* P4 is a 64-bit unsigned integer */
 #define P4_FUNCCTX  (-16)	/* P4 is a pointer to an sql_context object */
 #define P4_BOOL     (-17)	/* P4 is a bool value */
 #define P4_PTR      (-18)	/* P4 is a generic pointer */

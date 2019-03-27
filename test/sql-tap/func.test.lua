@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(14586)
+test:plan(14587)
 
 --!./tcltestrunner.lua
 -- 2001 September 15
@@ -919,7 +919,7 @@ test:do_execsql_test(
                             UNION ALL SELECT -9223372036854775807)
     ]], {
         -- <func-8.7>
-        "real"
+        "integer"
         -- </func-8.7>
     })
 
@@ -1591,16 +1591,17 @@ test:do_execsql_test(
         -- </func-18.11>
     })
 
-test:do_catchsql_test(
+test:do_execsql_test(
     "func-18.12",
     [[
         INSERT INTO t6 VALUES(3, 1<<62);
         SELECT sum(x) - ((1<<62)*2.0+1) from t6;
     ]], {
         -- <func-18.12>
-        1, "integer overflow"
+        0
         -- </func-18.12>
     })
+
 
 test:do_execsql_test(
     "func-18.13",
@@ -1611,6 +1612,17 @@ test:do_execsql_test(
         0.0
         -- </func-18.13>
     })
+
+test:do_execsql_test(
+        "func-18.12a",
+        [[
+            INSERT INTO t6 VALUES(4, 13+ (1<<62));
+            SELECT avg(x) from t6;
+        ]], {
+            -- <func-18.12>
+            3458764513820540928
+            -- </func-18.12>
+        })
 
 test:do_execsql_test(
     "func-18.14",
@@ -1653,7 +1665,7 @@ test:do_catchsql_test(
             SELECT 10 AS x);
     ]], {
         -- <func-18.15>
-        1, "integer overflow"
+        0, {9223372036854775817ULL}
         -- </func-18.15>
     })
 

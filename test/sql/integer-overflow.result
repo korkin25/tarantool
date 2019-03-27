@@ -12,25 +12,25 @@ box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 --
 box.sql.execute('SELECT (2147483647 * 2147483647 * 2147483647);')
 ---
-- error: 'Failed to execute SQL statement: integer is overflowed'
+- error: 'Failed to execute SQL statement: integer overflow'
 ...
 box.sql.execute('SELECT (-9223372036854775808 / -1);')
 ---
-- error: 'Failed to execute SQL statement: integer is overflowed'
+- - [9223372036854775808]
 ...
 box.sql.execute('SELECT (-9223372036854775808 - 1);')
 ---
-- error: 'Failed to execute SQL statement: integer is overflowed'
+- error: 'Failed to execute SQL statement: integer overflow'
 ...
 box.sql.execute('SELECT (9223372036854775807 + 1);')
 ---
-- error: 'Failed to execute SQL statement: integer is overflowed'
+- - [9223372036854775808]
 ...
 -- Literals are checked right after parsing.
 --
 box.sql.execute('SELECT 9223372036854775808;')
 ---
-- error: 'oversized integer: 9223372036854775808'
+- - [9223372036854775808]
 ...
 box.sql.execute('SELECT -9223372036854775809;')
 ---
@@ -38,13 +38,13 @@ box.sql.execute('SELECT -9223372036854775809;')
 ...
 box.sql.execute('SELECT 9223372036854775808 - 1;')
 ---
-- error: 'oversized integer: 9223372036854775808'
+- - [9223372036854775807]
 ...
 -- Test that CAST may also leads to overflow.
 --
 box.sql.execute('SELECT CAST(\'9223372036854775808\' AS INTEGER);')
 ---
-- error: 'Type mismatch: can not convert 9223372036854775808 to integer'
+- - [9223372036854775808]
 ...
 -- Due to inexact represantation of large integers in terms of
 -- floating point numbers, numerics with value < INT64_MAX
@@ -54,7 +54,7 @@ box.sql.execute('SELECT CAST(\'9223372036854775808\' AS INTEGER);')
 --
 box.sql.execute('SELECT CAST(9223372036854775807.0 AS INTEGER);')
 ---
-- error: 'Type mismatch: can not convert 9.22337203685478e+18 to integer'
+- - [9223372036854775808]
 ...
 -- gh-3810: make sure that if space contains integers in range
 -- [INT64_MAX, UINT64_MAX], they are handled inside SQL in a
@@ -69,7 +69,7 @@ box.space.T:insert({9223372036854775809})
 ...
 box.sql.execute('SELECT * FROM t;')
 ---
-- error: 'Failed to execute SQL statement: integer is overflowed'
+- - [9223372036854775808]
 ...
 box.space.T:drop()
 ---

@@ -382,11 +382,14 @@ cn:execute(sql, parameters)
 --
 -- Errors during parameters binding.
 --
--- Try value > INT64_MAX. sql can't bind it, since it has no
--- suitable method in its bind API.
-cn:execute('select ? as big_uint', {0xefffffffffffffff})
+-- Try value > INT64_MAX.
+cn:execute('select ? as big_uint', {0xefffffffffffffffULL})
 ---
-- error: Bind value for parameter 1 is out of range for type INTEGER
+- metadata:
+  - name: BIG_UINT
+    type: UNSIGNED
+  rows:
+  - [17293822569102704639]
 ...
 -- Bind incorrect parameters.
 cn:execute('select ?', { {1, 2, 3} })

@@ -34,6 +34,9 @@ lua_push_row(struct lua_State *L, struct sql_stmt *stmt)
 		case SQL_INTEGER:
 			luaL_pushint64(L, sql_column_int64(stmt, i));
 			break;
+		case SQL_UNSIGNED:
+			luaL_pushuint64(L, sql_column_uint64(stmt, i));
+			break;
 		case SQL_FLOAT:
 			lua_pushnumber(L, sql_column_double(stmt, i));
 			break;

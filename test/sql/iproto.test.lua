@@ -112,9 +112,8 @@ cn:execute(sql, parameters)
 --
 -- Errors during parameters binding.
 --
--- Try value > INT64_MAX. sql can't bind it, since it has no
--- suitable method in its bind API.
-cn:execute('select ? as big_uint', {0xefffffffffffffff})
+-- Try value > INT64_MAX.
+cn:execute('select ? as big_uint', {0xefffffffffffffffULL})
 -- Bind incorrect parameters.
 cn:execute('select ?', { {1, 2, 3} })
 parameters = {}

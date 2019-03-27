@@ -60,6 +60,9 @@ lua_sql_call(sql_context *pCtx, int nVal, sql_value **apVal) {
 		case SQL_INTEGER:
 			luaL_pushint64(L, sql_value_int64(param));
 			break;
+		case SQL_UNSIGNED:
+			luaL_pushuint64(L, sql_value_uint64(param));
+			break;
 		case SQL_FLOAT:
 			lua_pushnumber(L, sql_value_double(param));
 			break;

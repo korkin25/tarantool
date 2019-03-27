@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(128)
+test:plan(130)
 
 --!./tcltestrunner.lua
 -- 2014-07-23
@@ -91,7 +91,9 @@ hexlit1(160, "0X1000000000000000", 1152921504606846976LL)
 hexlit1(161, "0x2000000000000000", 2305843009213693952LL)
 hexlit1(162, "0X4000000000000000", 4611686018427387904LL)
 hexlit1(163, "0x8000000000000000", -9223372036854775808LL)
-hexlit1(164, "0XFFFFFFFFFFFFFFFF", -1)
+hexlit1(164, "0x8000000000000000", 9223372036854775808ULL)
+hexlit1(165, "0x8000000000000001", 9223372036854775809ULL)
+hexlit1(166, "0XFFFFFFFFFFFFFFFF", 18446744073709551615ULL)
 for n = 1, 0x10 -1, 1 do
     hexlit1("200."..n..".1", "0X"..string.format("%03X",n), n)
     hexlit1("200."..n..".2", "0x"..string.format("%03X",n), n)

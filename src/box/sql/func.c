@@ -121,6 +121,9 @@ typeofFunc(sql_context * context, int NotUsed, sql_value ** argv)
 	case SQL_BLOB:
 		z = "blob";
 		break;
+	case SQL_UNSIGNED:
+		z = "unsigned";
+		break;
 	default:
 		z = "null";
 		break;
@@ -141,6 +144,7 @@ lengthFunc(sql_context * context, int argc, sql_value ** argv)
 	switch (sql_value_type(argv[0])) {
 	case SQL_BLOB:
 	case SQL_INTEGER:
+	case SQL_UNSIGNED:
 	case SQL_FLOAT:{
 			sql_result_int(context,
 					   sql_value_bytes(argv[0]));
@@ -188,6 +192,11 @@ absFunc(sql_context * context, int argc, sql_value ** argv)
 				}
 				iVal = -iVal;
 			}
+			sql_result_int64(context, iVal);
+			break;
+		}
+	case SQL_UNSIGNED: {
+			u64 iVal = sql_value_uint64(argv[0]);
 			sql_result_int64(context, iVal);
 			break;
 		}
@@ -957,6 +966,7 @@ quoteFunc(sql_context * context, int argc, sql_value ** argv)
 					    SQL_TRANSIENT);
 			break;
 		}
+	case SQL_UNSIGNED:
 	case SQL_INTEGER:{
 			sql_result_value(context, argv[0]);
 			break;
@@ -1403,6 +1413,7 @@ struct SumCtx {
 	i64 cnt;		/* Number of elements summed */
 	u8 overflow;		/* True if integer overflow seen */
 	u8 approx;		/* True if non-integer value was input to the sum */
+	bool is_unsigned;	/* True if value exceeded 2^63 */
 };
 
 /*
@@ -1426,16 +1437,40 @@ sumStep(sql_context * context, int argc, sql_value ** argv)
 	type = sql_value_numeric_type(argv[0]);
 	if (p && type != SQL_NULL) {
 		p->cnt++;
+		enum arithmetic_result rc = ATHR_SIGNED;
+
 		if (type == SQL_INTEGER) {
 			i64 v = sql_value_int64(argv[0]);
 			p->rSum += v;
-			if ((p->approx | p->overflow) == 0
-			    && sqlAddInt64(&p->iSum, v)) {
-				p->overflow = 1;
-			}
+			if ((p->approx | p->overflow) == 0)
+				rc = sqlAddInt64(&p->iSum,
+						!p->is_unsigned,
+						v, true);
+		} else if (type == SQL_UNSIGNED) {
+			u64 v = sql_value_uint64(argv[0]);
+			p->rSum += v;
+			if ((p->approx | p->overflow) == 0)
+				rc = sqlAddInt64(&p->iSum,
+						 !p->is_unsigned,
+						 v, false);
 		} else {
 			p->rSum += sql_value_double(argv[0]);
 			p->approx = 1;
+			return;
+		}
+
+		/* process the result of integer addition */
+		if ((p->approx | p->overflow) == 0) {
+			switch (rc) {
+			case ATHR_SIGNED:
+				break;
+			case ATHR_UNSIGNED:
+				p->is_unsigned = true;
+				break;
+			default:
+				p->overflow = 1;
+				break;
+			}
 		}
 	}
 }
@@ -1448,6 +1483,8 @@ sumFinalize(sql_context * context)
 	if (p && p->cnt > 0) {
 		if (p->overflow) {
 			sql_result_error(context, "integer overflow", -1);
+		} else if (p->is_unsigned) {
+			sql_result_uint64(context, (u64)p->iSum);
 		} else if (p->approx) {
 			sql_result_double(context, p->rSum);
 		} else {
@@ -1462,7 +1499,15 @@ avgFinalize(sql_context * context)
 	SumCtx *p;
 	p = sql_aggregate_context(context, 0);
 	if (p && p->cnt > 0) {
-		sql_result_double(context, p->rSum / (double)p->cnt);
+		if (p->overflow || p->approx) {
+			sql_result_double(context, p->rSum / (double)p->cnt);
+		} else if (p->is_unsigned) {
+			u64 s =  (u64)p->iSum;
+			sql_result_double(context, (double)s / (double)p->cnt);
+		} else {
+			sql_result_double(context, (double)p->iSum / (double)p->cnt);
+		}
+
 	}
 }
 

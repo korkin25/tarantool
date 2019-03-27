@@ -591,109 +591,55 @@ sqlAtoF(const char *z, double *pResult, int length)
 #endif				/* SQL_OMIT_FLOATING_POINT */
 }
 
-/*
- * Compare the 19-character string zNum against the text representation
- * value 2^63:  9223372036854775808.  Return negative, zero, or positive
- * if zNum is less than, equal to, or greater than the string.
- * Note that zNum must contain exactly 19 characters.
- *
- * Unlike memcmp() this routine is guaranteed to return the difference
- * in the values of the last digit if the only difference is in the
- * last digit.  So, for example,
- *
- *      compare2pow63("9223372036854775800", 1)
- *
- * will return -8.
- */
-static int
-compare2pow63(const char *zNum, int incr)
-{
-	int c = 0;
-	int i;
-	/* 012345678901234567 */
-	const char *pow63 = "922337203685477580";
-	for (i = 0; c == 0 && i < 18; i++) {
-		c = (zNum[i * incr] - pow63[i]) * 10;
-	}
-	if (c == 0) {
-		c = zNum[18 * incr] - '8';
-		testcase(c == (-1));
-		testcase(c == 0);
-		testcase(c == (+1));
-	}
-	return c;
-}
+#ifndef INT64_MIN_MOD
+/* Modulo of INT64_MIN */
+#define INT64_MIN_MOD 0x8000000000000000
+#endif
 
 int
-sql_atoi64(const char *z, int64_t *val, int length)
+sql_atoi64(const char *z, int64_t *val, bool *is_unsigned, int length)
 {
-	int incr = 1;
-	u64 u = 0;
+	const char* expected_end = z + length;
 	int neg = 0;		/* assume positive */
-	int i;
-	int c = 0;
-	int nonNum = 0;		/* True if input contains UTF16 with high byte non-zero */
-	const char *zStart;
 	const char *zEnd = z + length;
-	incr = 1;
+	int incr = 1;
 	while (z < zEnd && sqlIsspace(*z))
 		z += incr;
-	if (z < zEnd) {
-		if (*z == '-') {
-			neg = 1;
-			z += incr;
-		} else if (*z == '+') {
-			z += incr;
-		}
-	}
-	zStart = z;
-	/* Skip leading zeros. */
-	while (z < zEnd && z[0] == '0') {
+
+	if (z >= zEnd)
+		return -1; /* invalid format */
+	if (*z == '-') {
+		neg = 1;
 		z += incr;
 	}
-	for (i = 0; &z[i] < zEnd && (c = z[i]) >= '0' && c <= '9';
-	     i += incr) {
-		u = u * 10 + c - '0';
-	}
-	if (u > LARGEST_INT64) {
-		*val = neg ? SMALLEST_INT64 : LARGEST_INT64;
-	} else if (neg) {
-		*val = -(i64) u;
+
+	char* end = NULL;
+	errno = 0;
+	u64 u = strtoull(z, &end, 10);
+	if (end < expected_end)
+		return -1;
+	if (errno != 0)
+		return -1;
+
+	if (neg) {
+		*is_unsigned = false;
+		if (u <= INT64_MAX)
+			*val = -u;
+		else if (u == INT64_MIN_MOD)
+			*val = (i64) u;
+		else
+			return -1;
 	} else {
 		*val = (i64) u;
+		*is_unsigned = (u > INT64_MAX);
 	}
-	if (&z[i] < zEnd || (i == 0 && zStart == z) || i > 19 * incr ||
-	    nonNum) {
-		/* zNum is empty or contains non-numeric text or is longer
-		 * than 19 digits (thus guaranteeing that it is too large)
-		 */
-		return 1;
-	} else if (i < 19 * incr) {
-		/* Less than 19 digits, so we know that it fits in 64 bits */
-		assert(u <= LARGEST_INT64);
-		return 0;
-	} else {
-		/* zNum is a 19-digit numbers.  Compare it against 9223372036854775808. */
-		c = compare2pow63(z, incr);
-		if (c < 0) {
-			/* zNum is less than 9223372036854775808 so it fits */
-			assert(u <= LARGEST_INT64);
-			return 0;
-		} else if (c > 0) {
-			/* zNum is greater than 9223372036854775808 so it overflows */
-			return 1;
-		} else {
-			/* zNum is exactly 9223372036854775808.  Fits if negative.  The
-			 * special case 2 overflow if positive
-			 */
-			assert(u - 1 == LARGEST_INT64);
-			return neg ? 0 : 2;
-		}
-	}
+
+	return 0;
 }
 
 int
-sql_dec_or_hex_to_i64(const char *z, int64_t *val)
+sql_dec_or_hex_to_i64(const char *z, bool is_neg, int64_t *val,
+		      bool *is_unsigned)
 {
 	if (z[0] == '0' && (z[1] == 'x' || z[1] == 'X')) {
 		uint64_t u = 0;
@@ -702,9 +648,36 @@ sql_dec_or_hex_to_i64(const char *z, int64_t *val)
 		for (k = i; sqlIsxdigit(z[k]); k++)
 			u = u * 16 + sqlHexToInt(z[k]);
 		memcpy(val, &u, 8);
-		return (z[k] == 0 && k - i <= 16) ? 0 : 1;
+
+		/* Determine result */
+		if ((k - i) > 16)
+			return -1;
+		else if (u > INT64_MAX)
+			*is_unsigned = true;
+		else
+			*is_unsigned = false;
 	}
-	return sql_atoi64(z, val, sqlStrlen30(z));
+	else if (sql_atoi64(z, val, is_unsigned, sqlStrlen30(z)) != 0)
+		return -1;
+
+	/* Apply sign */
+	if (is_neg) {
+		if (*is_unsigned){
+			/* A special processing is required
+			 * for the INT64_MIN value. Any other
+			 * values can't be presented as signed,
+			 * so change the return value to error. */
+			if (*val == INT64_MIN)
+				*is_unsigned = false;
+			else
+				return -1; /* exceeds the i64 */
+
+		} else{
+			*val = -*val;
+		}
+	}
+
+	return 0;
 }
 
 /*
@@ -1271,74 +1244,206 @@ sqlSafetyCheckSickOrOk(sql * db)
 }
 
 /*
- * Attempt to add, substract, or multiply the 64-bit signed value iB against
- * the other 64-bit signed integer at *pA and store the result in *pA.
- * Return 0 on success.  Or if the operation would have resulted in an
- * overflow, leave *pA unchanged and return 1.
+ * Get modulo of 64-bit number
  */
-int
-sqlAddInt64(i64 * pA, i64 iB)
+static u64 mod64(i64 v, bool is_signed)
 {
-	i64 iA = *pA;
-	testcase(iA == 0);
-	testcase(iA == 1);
-	testcase(iB == -1);
-	testcase(iB == 0);
-	if (iB >= 0) {
-		testcase(iA > 0 && LARGEST_INT64 - iA == iB);
-		testcase(iA > 0 && LARGEST_INT64 - iA == iB - 1);
-		if (iA > 0 && LARGEST_INT64 - iA < iB)
-			return 1;
-	} else {
-		testcase(iA < 0 && -(iA + LARGEST_INT64) == iB + 1);
-		testcase(iA < 0 && -(iA + LARGEST_INT64) == iB + 2);
-		if (iA < 0 && -(iA + LARGEST_INT64) > iB + 1)
-			return 1;
-	}
-	*pA += iB;
-	return 0;
+	bool is_neg = v < 0 && is_signed;
+	if (is_neg)
+		return (v == INT64_MIN) ? (u64)v : (u64)(-v);
+	else
+		return (u64)v;
 }
 
-int
-sqlSubInt64(i64 * pA, i64 iB)
+static enum arithmetic_result
+apply_sign(i64* pOut, u64 value, bool is_neg)
 {
-	testcase(iB == SMALLEST_INT64 + 1);
-	if (iB == SMALLEST_INT64) {
-		testcase((*pA) == (-1));
-		testcase((*pA) == 0);
-		if ((*pA) >= 0)
-			return 1;
-		*pA -= iB;
-		return 0;
-	} else {
-		return sqlAddInt64(pA, -iB);
+	if (is_neg) {
+		if (value > INT64_MIN_MOD)
+			return ATHR_OVERFLOW;
+		else if (value == INT64_MIN_MOD)
+			*pOut = (i64)value;
+		else
+			*pOut = -(i64)value;
+
+		return ATHR_SIGNED;
 	}
+
+	*pOut = (i64) value;
+	return (value > INT64_MAX) ? ATHR_UNSIGNED
+				   : ATHR_SIGNED;
 }
 
-int
-sqlMulInt64(i64 * pA, i64 iB)
+/*
+ * Attempt to add, substract, or multiply the 64-bit value irhs against
+ * the other 64-bit integer at *plhs and store the result in *plhs.
+ * Return ATHR_SIGNED or ATHR_UNSIGNED on success.
+ * Or if the operation would have resulted in an
+ * overflow, leave *pA unchanged and return ATHR_OVERFLOW.
+ */
+enum arithmetic_result
+sqlAddInt64(i64 * plhs, bool is_lhs_signed, i64 irhs, bool is_rhs_signed)
 {
-	i64 iA = *pA;
-	if (iB > 0) {
-		if (iA > LARGEST_INT64 / iB)
-			return 1;
-		if (iA < SMALLEST_INT64 / iB)
-			return 1;
-	} else if (iB < 0) {
-		if (iA > 0) {
-			if (iB < SMALLEST_INT64 / iA)
-				return 1;
-		} else if (iA < 0) {
-			if (iB == SMALLEST_INT64)
-				return 1;
-			if (iA == SMALLEST_INT64)
-				return 1;
-			if (-iA > LARGEST_INT64 / -iB)
-				return 1;
+	i64 ilhs = *plhs;
+
+	bool is_lhs_neg = ilhs < 0 && is_lhs_signed;
+	bool is_rhs_neg = irhs < 0 && is_rhs_signed;
+
+	if (is_lhs_neg != is_rhs_neg) {
+		/*
+		 * Make sure we've got only one combination of
+		 * positive and negative operands
+		 */
+		if (is_lhs_neg > is_rhs_neg) {
+			SWAP(is_lhs_neg, is_rhs_neg);
+			SWAP(ilhs, irhs);
+		}
+		assert(is_lhs_neg == false && is_rhs_neg == true);
+
+		u64 uB = mod64(irhs, true);
+
+		if ((u64)ilhs >= uB) {
+			u64 sum = (u64)ilhs - uB;
+			*plhs = (i64)sum;
+			return (sum <= INT64_MAX) ? ATHR_SIGNED
+						  : ATHR_UNSIGNED;
+		} else {
+			u64 sum = uB - (u64)ilhs;
+			if (sum == INT64_MIN_MOD) {
+				*plhs = INT64_MIN;
+			} else {
+				assert(sum <= INT64_MAX);
+				*plhs = -(i64)sum;
+			}
+			return ATHR_SIGNED;
 		}
 	}
-	*pA = iA * iB;
-	return 0;
+
+	if (is_lhs_neg) {
+		assert(is_lhs_signed && is_rhs_signed);
+		if (-(ilhs + LARGEST_INT64) > irhs + 1)
+			return ATHR_OVERFLOW;
+		*plhs = ilhs + irhs;
+		return ATHR_SIGNED;
+	} else {
+		if (UINT64_MAX - (u64)ilhs < (u64)irhs)
+			return ATHR_OVERFLOW;
+
+		u64 sum = (u64)ilhs + (u64)irhs;
+		*plhs = (i64)sum;
+		return (sum <= INT64_MAX) ? ATHR_SIGNED
+					  : ATHR_UNSIGNED;
+	}
+}
+
+enum arithmetic_result
+sqlSubInt64(i64 * plhs, bool is_lhs_signed, i64 irhs, bool is_rhs_signed)
+{
+	i64 ilhs = *plhs;
+
+	bool is_lhs_neg = ilhs < 0 && is_lhs_signed;
+	bool is_rhs_neg = irhs < 0 && is_rhs_signed;
+
+	if (is_lhs_neg) {
+		if (!is_rhs_signed){
+			assert((u64)irhs > INT64_MAX);
+			return ATHR_OVERFLOW;
+		}
+
+		if (irhs == INT64_MIN)
+			return ATHR_OVERFLOW;
+		else
+			return sqlAddInt64(plhs, true, -irhs, true);
+	}
+
+	if (is_rhs_neg) {
+		/* ilhs - (-irhs) => ilhs + irhs */
+		u64 uB = mod64(irhs, true);
+		if (irhs == INT64_MIN)
+			is_rhs_signed = false;
+
+		return sqlAddInt64(plhs, is_lhs_signed, uB, is_rhs_signed);
+	} else {
+		/* Both ilhs & irhs are positive */
+		if ((u64)ilhs < (u64)irhs) {
+			/* subtract with sign changing */
+			u64 val = (u64)irhs - (u64)ilhs;
+			return apply_sign(plhs, val, true);
+		} else {
+			u64 val = (u64)ilhs - (u64)irhs;
+			*plhs = (i64)val;
+			return (val > INT64_MAX) ? ATHR_UNSIGNED
+						 : ATHR_SIGNED;
+		}
+	}
+}
+
+enum arithmetic_result
+sqlMulInt64(i64 * plhs, bool is_lhs_signed, i64 irhs, bool is_rhs_signed)
+{
+	if (*plhs == 0 || irhs == 0) {
+		*plhs = 0;
+		return ATHR_SIGNED;
+	}
+
+	bool is_lhs_neg = *plhs < 0 && is_lhs_signed;
+	bool is_rhs_neg = irhs < 0 && is_rhs_signed;
+
+	bool is_neg = is_lhs_neg != is_rhs_neg;
+
+	u64 ulhs = mod64(*plhs, is_lhs_signed);
+	u64 urhs = mod64(irhs, is_rhs_signed);
+
+	if (is_neg) {
+		if (INT64_MIN_MOD / ulhs < urhs)
+			return ATHR_OVERFLOW;
+	} else {
+		if (UINT64_MAX / ulhs < urhs)
+			return ATHR_OVERFLOW;
+	}
+
+	u64 mul = ulhs * urhs;
+	return apply_sign(plhs, mul, is_neg);
+}
+
+enum arithmetic_result
+sqlDivInt64(i64 * plhs, bool is_lhs_signed, i64 irhs, bool is_rhs_signed) {
+	if (*plhs == 0)
+		return ATHR_SIGNED;
+	if (irhs == 0)
+		return ATHR_DIVBYZERO;
+
+	bool is_lhs_neg = *plhs < 0 && is_lhs_signed;
+	bool is_rhs_neg = irhs < 0 && is_rhs_signed;
+
+	bool is_neg = is_lhs_neg != is_rhs_neg;
+
+	u64 ulhs = mod64(*plhs, is_lhs_signed);
+	u64 urhs = mod64(irhs, is_rhs_signed);
+
+	u64 div = ulhs / urhs;
+	return apply_sign(plhs, div, is_neg);
+}
+
+enum arithmetic_result
+sqlRemInt64(i64 * plhs, bool is_lhs_signed, i64 irhs, bool is_rhs_signed) {
+
+	if (irhs == 0)
+		return ATHR_DIVBYZERO;
+	/*
+	 * The sign of the remainder is defined in such
+	 * a way that if the quotient a/b is representable
+	 * in the result type, then (a/b)*b + a%b == a.
+	 *
+	 * The 2nd operand doesn't affect the sign of result.
+	 */
+
+	bool is_neg = *plhs < 0 && is_lhs_signed;
+	u64 ulhs = mod64(*plhs, is_lhs_signed);
+	u64 urhs = mod64(irhs, is_rhs_signed);
+
+	u64 rem = ulhs % urhs;
+	return apply_sign(plhs, rem, is_neg);
 }
 
 /*
@@ -1354,41 +1459,6 @@ sqlAbsInt32(int x)
 		return 0x7fffffff;
 	return -x;
 }
-
-#ifdef SQL_ENABLE_8_3_NAMES
-/*
- * If SQL_ENABLE_8_3_NAMES is set at compile-time and if the database
- * filename in zBaseFilename is a URI with the "8_3_names=1" parameter and
- * if filename in z[] has a suffix (a.k.a. "extension") that is longer than
- * three characters, then shorten the suffix on z[] to be the last three
- * characters of the original suffix.
- *
- * If SQL_ENABLE_8_3_NAMES is set to 2 at compile-time, then always
- * do the suffix shortening regardless of URI parameter.
- *
- * Examples:
- *
- *     test.db-journal    =>   test.nal
- *     test.db-wal        =>   test.wal
- *     test.db-shm        =>   test.shm
- *     test.db-mj7f3319fa =>   test.9fa
- */
-void
-sqlFileSuffix3(const char *zBaseFilename, char *z)
-{
-#if SQL_ENABLE_8_3_NAMES<2
-	if (sql_uri_boolean(zBaseFilename, "8_3_names", 0))
-#endif
-	{
-		int i, sz;
-		sz = sqlStrlen30(z);
-		for (i = sz - 1; i > 0 && z[i] != '/' && z[i] != '.'; i--) {
-		}
-		if (z[i] == '.' && ALWAYS(sz > i + 4))
-			memmove(&z[i + 1], &z[sz - 3], 4);
-	}
-}
-#endif
 
 /*
  * Find (an approximate) sum of two LogEst values.  This computation is

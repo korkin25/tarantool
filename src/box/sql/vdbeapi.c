@@ -215,7 +215,8 @@ int
 sql_value_int(sql_value * pVal)
 {
 	int64_t i;
-	sqlVdbeIntValue((Mem *) pVal, &i);
+	bool is_unsigned = false;
+	sqlVdbeIntValue((Mem *) pVal, &i, &is_unsigned);
 	return (int)i;
 }
 
@@ -223,7 +224,17 @@ sql_int64
 sql_value_int64(sql_value * pVal)
 {
 	int64_t i;
-	sqlVdbeIntValue((Mem *) pVal, &i);
+	bool is_unsigned = false;
+	sqlVdbeIntValue((Mem *) pVal, &i, &is_unsigned);
+	return i;
+}
+
+sql_uint64
+sql_value_uint64(sql_value * pVal)
+{
+	uint64_t i;
+	bool is_unsigned = false;
+	sqlVdbeIntValue((Mem *) pVal, (int64_t *)&i, &is_unsigned);
 	return i;
 }
 
@@ -246,41 +257,38 @@ sql_value_text(sql_value * pVal)
 int
 sql_value_type(sql_value * pVal)
 {
-	static const u8 aType[] = {
-		SQL_BLOB,	/* 0x00 */
-		SQL_NULL,	/* 0x01 */
-		SQL_TEXT,	/* 0x02 */
-		SQL_NULL,	/* 0x03 */
-		SQL_INTEGER,	/* 0x04 */
-		SQL_NULL,	/* 0x05 */
-		SQL_INTEGER,	/* 0x06 */
-		SQL_NULL,	/* 0x07 */
-		SQL_FLOAT,	/* 0x08 */
-		SQL_NULL,	/* 0x09 */
-		SQL_FLOAT,	/* 0x0a */
-		SQL_NULL,	/* 0x0b */
-		SQL_INTEGER,	/* 0x0c */
-		SQL_NULL,	/* 0x0d */
-		SQL_INTEGER,	/* 0x0e */
-		SQL_NULL,	/* 0x0f */
-		SQL_BLOB,	/* 0x10 */
-		SQL_NULL,	/* 0x11 */
-		SQL_TEXT,	/* 0x12 */
-		SQL_NULL,	/* 0x13 */
-		SQL_INTEGER,	/* 0x14 */
-		SQL_NULL,	/* 0x15 */
-		SQL_INTEGER,	/* 0x16 */
-		SQL_NULL,	/* 0x17 */
-		SQL_FLOAT,	/* 0x18 */
-		SQL_NULL,	/* 0x19 */
-		SQL_FLOAT,	/* 0x1a */
-		SQL_NULL,	/* 0x1b */
-		SQL_INTEGER,	/* 0x1c */
-		SQL_NULL,	/* 0x1d */
-		SQL_INTEGER,	/* 0x1e */
-		SQL_NULL,	/* 0x1f */
-	};
-	return aType[pVal->flags & MEM_PURE_TYPE_MASK];
+	/*
+	 * The order of the comparisons is essential.
+	 * Once the value change its type,
+	 * e.g. string or blob to integer/real
+	 * the dynamic data are not disposed,
+	 * they are kept together with scalar value.
+	 * Thus the field 'flags' accumulates several
+	 * bits responsible for data type.
+	 * So the right order is following:
+	 * - Null
+	 * - Unsigned integer
+	 * - Signed integer
+	 * - Real
+	 * - Bool
+	 * - String
+	 * - Blob
+	 */
+	if ((pVal->flags & MEM_Null) != 0)
+		return SQL_NULL;
+	if ((pVal->flags & MEM_UInt) != 0)
+		return SQL_UNSIGNED;
+	if ((pVal->flags & MEM_Int) != 0)
+		return SQL_INTEGER;
+	if ((pVal->flags & MEM_Real) != 0)
+		return SQL_FLOAT;
+	if ((pVal->flags & MEM_Bool) != 0)
+		return SQL_INTEGER;
+	if ((pVal->flags & MEM_Str) != 0)
+		return SQL_TEXT;
+	if ((pVal->flags & MEM_Blob) != 0)
+		return SQL_BLOB;
+	return SQL_NULL;	/* Unknown type */
 }
 
 /* Make a copy of an sql_value object
@@ -408,6 +416,15 @@ void
 sql_result_int64(sql_context * pCtx, i64 iVal)
 {
 	sqlVdbeMemSetInt64(pCtx->pOut, iVal);
+}
+
+void
+sql_result_uint64(sql_context * pCtx, u64 iVal)
+{
+	if (iVal > INT64_MAX)
+		sqlVdbeMemSetUInt64(pCtx->pOut, iVal);
+	else
+		sqlVdbeMemSetInt64(pCtx->pOut, (i64)iVal);
 }
 
 void
@@ -1016,6 +1033,14 @@ sql_column_int64(sql_stmt * pStmt, int i)
 	return val;
 }
 
+sql_uint64
+sql_column_uint64(sql_stmt * pStmt, int i)
+{
+	sql_uint64 val = sql_value_uint64(columnMem(pStmt, i));
+	columnMallocFailure(pStmt);
+	return val;
+}
+
 const unsigned char *
 sql_column_text(sql_stmt * pStmt, int i)
 {
@@ -1368,6 +1393,19 @@ sql_bind_int64(sql_stmt * pStmt, int i, sql_int64 iValue)
 }
 
 int
+sql_bind_uint64(sql_stmt * pStmt, int i, sql_uint64 iValue)
+{
+	int rc;
+	Vdbe *p = (Vdbe *) pStmt;
+	rc = vdbeUnbind(p, i);
+	if (rc == SQL_OK) {
+		rc = sql_bind_type(p, i, "UNSIGNED");
+		sqlVdbeMemSetUInt64(&p->aVar[i - 1], iValue);
+	}
+	return rc;
+}
+
+int
 sql_bind_null(sql_stmt * pStmt, int i)
 {
 	int rc;
@@ -1408,6 +1446,10 @@ sql_bind_value(sql_stmt * pStmt, int i, const sql_value * pValue)
 	switch (sql_value_type((sql_value *) pValue)) {
 	case SQL_INTEGER:{
 			rc = sql_bind_int64(pStmt, i, pValue->u.i);
+			break;
+		}
+	case SQL_UNSIGNED: {
+			rc = sql_bind_uint64(pStmt, i, pValue->u.i);
 			break;
 		}
 	case SQL_FLOAT:{

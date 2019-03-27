@@ -66,7 +66,8 @@ sqlVdbeCheckMemInvariants(Mem * p)
 	assert((p->flags & MEM_Dyn) == 0 || p->szMalloc == 0);
 
 	/* Cannot be both MEM_Int and MEM_Real at the same time */
-	assert((p->flags & (MEM_Int | MEM_Real)) != (MEM_Int | MEM_Real));
+	assert((p->flags & (MEM_Int | MEM_Real | MEM_UInt)) !=
+				(MEM_Int | MEM_Real| MEM_UInt));
 
 	/* The szMalloc field holds the correct memory allocation size */
 	assert(p->szMalloc == 0
@@ -173,7 +174,7 @@ sqlVdbeMemClearAndResize(Mem * pMem, int szNew)
 	}
 	assert((pMem->flags & MEM_Dyn) == 0);
 	pMem->z = pMem->zMalloc;
-	pMem->flags &= (MEM_Null | MEM_Int | MEM_Real);
+	pMem->flags &= (MEM_Null | MEM_Int | MEM_Real | MEM_UInt);
 	return SQL_OK;
 }
 
@@ -289,7 +290,7 @@ sqlVdbeMemStringify(Mem * pMem, u8 bForce)
 		return SQL_OK;
 
 	assert(!(fg & MEM_Zero));
-	assert(fg & (MEM_Int | MEM_Real));
+	assert(fg & (MEM_Int | MEM_Real | MEM_UInt));
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 
 	if (sqlVdbeMemClearAndResize(pMem, nByte)) {
@@ -297,6 +298,8 @@ sqlVdbeMemStringify(Mem * pMem, u8 bForce)
 	}
 	if (fg & MEM_Int) {
 		sql_snprintf(nByte, pMem->z, "%lld", pMem->u.i);
+	} else if (fg & MEM_UInt) {
+		sql_snprintf(nByte, pMem->z, "%llu", pMem->u.u);
 	} else {
 		assert(fg & MEM_Real);
 		sql_snprintf(nByte, pMem->z, "%!.15g", pMem->u.r);
@@ -304,7 +307,7 @@ sqlVdbeMemStringify(Mem * pMem, u8 bForce)
 	pMem->n = sqlStrlen30(pMem->z);
 	pMem->flags |= MEM_Str | MEM_Term;
 	if (bForce)
-		pMem->flags &= ~(MEM_Int | MEM_Real);
+		pMem->flags &= ~(MEM_Int | MEM_Real | MEM_UInt);
 	return SQL_OK;
 }
 
@@ -411,39 +414,36 @@ sqlVdbeMemRelease(Mem * p)
 }
 
 /*
- * Convert a 64-bit IEEE double into a 64-bit signed integer.
- * If the double is out of range of a 64-bit signed integer then
- * return the closest available 64-bit signed integer.
+ * Convert a 64-bit IEEE double into a 64-bit signed or unsigned integer.
+ * If the double is out of range of a 64-bit unsigned integer then
+ * return the closest available 64-bit unsigned integer.
+ * Returns 0 on success, -1 on error and 1 on precision loss.
  */
 static int
-doubleToInt64(double r, int64_t *i)
+doubleToInt64(double r, int64_t *i, bool* is_unsigned)
 {
-#ifdef SQL_OMIT_FLOATING_POINT
-	/* When floating-point is omitted, double and int64 are the same thing */
-	*i = r;
-	return 0;
-#else
-	/*
-	 * Many compilers we encounter do not define constants for the
-	 * minimum and maximum 64-bit integers, or they define them
-	 * inconsistently.  And many do not understand the "LL" notation.
-	 * So we define our own static constants here using nothing
-	 * larger than a 32-bit integer constant.
-	 */
-	static const int64_t maxInt = LARGEST_INT64;
-	static const int64_t minInt = SMALLEST_INT64;
+	static const int64_t minInt = INT64_MIN;
+	static const uint64_t maxUInt = UINT64_MAX;
+	static const int64_t maxInt = INT64_MAX;
 
-	if (r <= (double)minInt) {
+	if (r < (double)minInt){
 		*i = minInt;
+		*is_unsigned = false;
 		return -1;
-	} else if (r >= (double)maxInt) {
-		*i = maxInt;
+	} else if (r > (double)maxUInt) {
+		*i = maxUInt;
+		*is_unsigned = true;
 		return -1;
+	} else if (r >= (double)maxInt){
+		uint64_t t = (uint64_t) r;
+		*i = (int64_t) t;
+		*is_unsigned = true;
+		return (t != r) ? 1 : 0;
 	} else {
 		*i = (int64_t) r;
-		return *i != r;
+		*is_unsigned = false;
+		return (*i != r) ? 1 : 0;
 	}
-#endif
 }
 
 /*
@@ -458,20 +458,24 @@ doubleToInt64(double r, int64_t *i)
  * If pMem represents a string value, its encoding might be changed.
  */
 int
-sqlVdbeIntValue(Mem * pMem, int64_t *i)
+sqlVdbeIntValue(Mem * pMem, int64_t *i, bool *is_unsigned)
 {
 	int flags;
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 	flags = pMem->flags;
 	if (flags & MEM_Int) {
 		*i = pMem->u.i;
+		*is_unsigned = false;
+		return 0;
+	} else if (flags & MEM_UInt) {
+		*i = (i64)pMem->u.u;
+		*is_unsigned = true;
 		return 0;
 	} else if (flags & MEM_Real) {
-		return doubleToInt64(pMem->u.r, i);
+		return doubleToInt64(pMem->u.r, i, is_unsigned);
 	} else if (flags & (MEM_Str)) {
 		assert(pMem->z || pMem->n == 0);
-		if (sql_atoi64(pMem->z, (int64_t *)i, pMem->n) == 0)
-			return 0;
+		return sql_atoi64(pMem->z, i, is_unsigned, pMem->n);
 	}
 	return -1;
 }
@@ -488,6 +492,9 @@ sqlVdbeRealValue(Mem * pMem, double *v)
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 	if (pMem->flags & MEM_Real) {
 		*v = pMem->u.r;
+		return 0;
+	} else if (pMem->flags & MEM_UInt) {
+		*v = (double)pMem->u.u;
 		return 0;
 	} else if (pMem->flags & MEM_Int) {
 		*v = (double)pMem->u.i;
@@ -511,9 +518,14 @@ mem_apply_integer_type(Mem *pMem)
 	assert(pMem->flags & MEM_Real);
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 
-	if ((rc = doubleToInt64(pMem->u.r, (int64_t *) &ix)) == 0) {
+	bool is_unsigned = false;
+
+	if ((rc = doubleToInt64(pMem->u.r, (int64_t *) &ix, &is_unsigned)) == 0) {
 		pMem->u.i = ix;
-		MemSetTypeFlag(pMem, MEM_Int);
+		if (is_unsigned)
+			MemSetTypeFlag(pMem, MEM_UInt);
+		else
+			MemSetTypeFlag(pMem, MEM_Int);
 	}
 	return rc;
 }
@@ -527,15 +539,23 @@ sqlVdbeMemIntegerify(Mem * pMem, bool is_forced)
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 
 	int64_t i;
-	if (sqlVdbeIntValue(pMem, &i) == 0) {
+	bool is_unsigned = false;
+	if (sqlVdbeIntValue(pMem, &i, &is_unsigned) == 0) {
 		pMem->u.i = i;
-		MemSetTypeFlag(pMem, MEM_Int);
+
+		if (is_unsigned)
+			MemSetTypeFlag(pMem, MEM_UInt);
+		else
+			MemSetTypeFlag(pMem, MEM_Int);
 		return 0;
 	} else if ((pMem->flags & MEM_Real) != 0 && is_forced) {
-		if (pMem->u.r >= INT64_MAX || pMem->u.r < INT64_MIN)
+		if (doubleToInt64(pMem->u.r, (int64_t*)&pMem->u.i, &is_unsigned) < 0)
 			return -1;
-		pMem->u.i = (int64_t) pMem->u.r;
-		MemSetTypeFlag(pMem, MEM_Int);
+
+		if (is_unsigned)
+			MemSetTypeFlag(pMem, MEM_UInt);
+		else
+			MemSetTypeFlag(pMem, MEM_Int);
 		return 0;
 	}
 
@@ -576,10 +596,17 @@ sqlVdbeMemRealify(Mem * pMem)
 int
 sqlVdbeMemNumerify(Mem * pMem)
 {
-	if ((pMem->flags & (MEM_Int | MEM_Real | MEM_Null)) == 0) {
+	if ((pMem->flags & (MEM_Int | MEM_Real | MEM_Null | MEM_UInt)) == 0) {
 		assert((pMem->flags & (MEM_Blob | MEM_Str)) != 0);
-		if (0 == sql_atoi64(pMem->z, (int64_t *)&pMem->u.i, pMem->n)) {
-			MemSetTypeFlag(pMem, MEM_Int);
+		bool is_unsigned = false;
+		if (0 == sql_atoi64(pMem->z,
+				    (int64_t *)&pMem->u.i,
+				    &is_unsigned,
+				    pMem->n)) {
+			if (is_unsigned)
+				MemSetTypeFlag(pMem, MEM_UInt);
+			else
+				MemSetTypeFlag(pMem, MEM_Int);
 		} else {
 			double v;
 			if (sqlVdbeRealValue(pMem, &v))
@@ -589,7 +616,7 @@ sqlVdbeMemNumerify(Mem * pMem)
 			mem_apply_integer_type(pMem);
 		}
 	}
-	assert((pMem->flags & (MEM_Int | MEM_Real | MEM_Null)) != 0);
+	assert((pMem->flags & (MEM_Int | MEM_Real | MEM_Null | MEM_UInt)) != 0);
 	pMem->flags &= ~(MEM_Str | MEM_Blob | MEM_Zero);
 	return SQL_OK;
 }
@@ -608,9 +635,15 @@ sqlVdbeMemCast(Mem * pMem, enum field_type type)
 	if (pMem->flags & MEM_Null)
 		return SQL_OK;
 	if ((pMem->flags & MEM_Blob) != 0 && type == FIELD_TYPE_NUMBER) {
-		if (sql_atoi64(pMem->z, (int64_t *) &pMem->u.i, pMem->n) == 0) {
+		bool is_unsigned = false;
+		if (sql_atoi64(pMem->z, (int64_t *) &pMem->u.i,
+				&is_unsigned, pMem->n) == 0) {
 			MemSetTypeFlag(pMem, MEM_Real);
-			pMem->u.r = pMem->u.i;
+
+			if (is_unsigned)
+				pMem->u.r = (u64)pMem->u.i;
+			else
+				pMem->u.r = pMem->u.i;
 			return 0;
 		}
 		return ! sqlAtoF(pMem->z, &pMem->u.r, pMem->n);
@@ -620,10 +653,15 @@ sqlVdbeMemCast(Mem * pMem, enum field_type type)
 		return 0;
 	case FIELD_TYPE_INTEGER:
 		if ((pMem->flags & MEM_Blob) != 0) {
+			bool is_unsigned = false;
 			if (sql_atoi64(pMem->z, (int64_t *) &pMem->u.i,
+				       &is_unsigned,
 				       pMem->n) != 0)
 				return -1;
-			MemSetTypeFlag(pMem, MEM_Int);
+			if (is_unsigned)
+				MemSetTypeFlag(pMem, MEM_UInt);
+			else
+				MemSetTypeFlag(pMem, MEM_Int);
 			return 0;
 		}
 		return sqlVdbeMemIntegerify(pMem, true);
@@ -635,7 +673,7 @@ sqlVdbeMemCast(Mem * pMem, enum field_type type)
 		pMem->flags |= (pMem->flags & MEM_Blob) >> 3;
 			sql_value_apply_type(pMem, FIELD_TYPE_STRING);
 		assert(pMem->flags & MEM_Str || pMem->db->mallocFailed);
-		pMem->flags &= ~(MEM_Int | MEM_Real | MEM_Blob | MEM_Zero);
+		pMem->flags &= ~(MEM_Int | MEM_Real | MEM_Blob | MEM_Zero | MEM_UInt);
 		return SQL_OK;
 	}
 }
@@ -711,6 +749,14 @@ vdbeReleaseAndSetInt64(Mem * pMem, i64 val)
 	pMem->flags = MEM_Int;
 }
 
+static SQL_NOINLINE void
+vdbeReleaseAndSetUInt64(Mem * pMem, u64 val)
+{
+	sqlVdbeMemSetNull(pMem);
+	pMem->u.u = val;
+	pMem->flags = MEM_UInt;
+}
+
 /*
  * Delete any previous value and set the value stored in *pMem to val,
  * manifest type INTEGER.
@@ -723,6 +769,17 @@ sqlVdbeMemSetInt64(Mem * pMem, i64 val)
 	} else {
 		pMem->u.i = val;
 		pMem->flags = MEM_Int;
+	}
+}
+
+void
+sqlVdbeMemSetUInt64(Mem * pMem, u64 val)
+{
+	if (VdbeMemDynamic(pMem)) {
+		vdbeReleaseAndSetUInt64(pMem, val);
+	} else {
+		pMem->u.u = val;
+		pMem->flags = MEM_UInt;
 	}
 }
 
@@ -1312,7 +1369,7 @@ valueFromExpr(sql * db,	/* The database connection */
 		} else {
 			sql_value_apply_type(pVal, type);
 		}
-		if (pVal->flags & (MEM_Int | MEM_Real))
+		if (pVal->flags & (MEM_Int | MEM_Real | MEM_UInt))
 			pVal->flags &= ~MEM_Str;
 	} else if (op == TK_UMINUS) {
 		/* This branch happens for multiple negative signs.  Ex: -(-5) */
@@ -1727,6 +1784,8 @@ encode_int:
 			mpstream_encode_uint(stream, i);
 		else
 			mpstream_encode_int(stream, i);
+	} else if (var->flags & MEM_UInt) {
+		mpstream_encode_uint(stream, var->u.u);
 	} else if (var->flags & MEM_Str) {
 		mpstream_encode_strn(stream, var->z, var->n);
 	} else if (var->flags & MEM_Bool) {

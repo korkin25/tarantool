@@ -862,6 +862,7 @@ freeP4(sql * db, int p4type, void *p4)
 		}
 	case P4_REAL:
 	case P4_INT64:
+	case P4_UINT64:
 	case P4_DYNAMIC:
 	case P4_INTARRAY:{
 			sqlDbFree(db, p4);
@@ -1354,6 +1355,10 @@ displayP4(Op * pOp, char *zTemp, int nTemp)
 			sqlXPrintf(&x, "%lld", *pOp->p4.pI64);
 			break;
 		}
+	case P4_UINT64:{
+			sqlXPrintf(&x, "%ull", *pOp->p4.pI64);
+			break;
+	}
 	case P4_INT32:{
 			sqlXPrintf(&x, "%d", pOp->p4.i);
 			break;
@@ -1368,6 +1373,8 @@ displayP4(Op * pOp, char *zTemp, int nTemp)
 				zP4 = pMem->z;
 			} else if (pMem->flags & MEM_Int) {
 				sqlXPrintf(&x, "%lld", pMem->u.i);
+			} else if (pMem->flags & MEM_UInt) {
+				sqlXPrintf(&x, "%llu", pMem->u.u);
 			} else if (pMem->flags & MEM_Real) {
 				sqlXPrintf(&x, "%.16g", pMem->u.r);
 			} else if (pMem->flags & MEM_Null) {
@@ -2851,7 +2858,7 @@ sqlVdbeSerialType(Mem * pMem, int file_format, u32 * pLen)
 		*pLen = 0;
 		return 0;
 	}
-	if (flags & MEM_Int) {
+	if (flags & (MEM_Int|MEM_UInt)) {
 		/* Figure out whether to use 1, 2, 4, 6 or 8 bytes. */
 #define MAX_6BYTE ((((i64)0x00008000)<<32)-1)
 		i64 i = pMem->u.i;
@@ -3358,6 +3365,44 @@ sqlIntFloatCompare(i64 i, double r)
 }
 
 /*
+ * Do a comparison between a 64-bit signed integer and a 64-bit
+ * unsigned integer.
+ * Return negative, zero, or positive if the first (i64) is less than,
+ * equal to, or greater than the second (u64).
+ */
+static int
+sqlIntUIntCompare(i64 i, u64 u)
+{
+	if (i < 0)
+		return -1;
+	if ((u64)i < u)
+		return -1;
+	else if ((u64)i > u)
+		return +1;
+	else
+		return 0;
+}
+
+/*
+ * Do a comparison between a 64-bit unsigned integer and a 64-bit
+ * floating-point number.
+ * Return negative, zero, or positive if the first (u64)
+ * is less than, equal to, or greater than the second (double).
+ */
+static int
+sqlUIntFloatCompare(u64 u, double r)
+{
+	if (r < 0.0)
+		return +1;
+	double s = (double)u;
+	if (s < r)
+		return -1;
+	if (s > r)
+		return +1;
+	return 0;
+}
+
+/*
  * Compare the values contained by the two memory cells, returning
  * negative, zero or positive if pMem1 is less than, equal to, or greater
  * than pMem2. Sorting order is NULL's first, followed by numbers (integers
@@ -3385,11 +3430,18 @@ sqlMemCompare(const Mem * pMem1, const Mem * pMem2, const struct coll * pColl)
 
 	/* At least one of the two values is a number
 	 */
-	if (combined_flags & (MEM_Int | MEM_Real)) {
+	if (combined_flags & (MEM_Int | MEM_Real | MEM_UInt)) {
 		if ((f1 & f2 & MEM_Int) != 0) {
 			if (pMem1->u.i < pMem2->u.i)
 				return -1;
 			if (pMem1->u.i > pMem2->u.i)
+				return +1;
+			return 0;
+		}
+		if ((f1 & f2 & MEM_UInt) != 0) {
+			if (pMem1->u.u < pMem2->u.u)
+				return -1;
+			if (pMem1->u.u > pMem2->u.u)
 				return +1;
 			return 0;
 		}
@@ -3404,6 +3456,20 @@ sqlMemCompare(const Mem * pMem1, const Mem * pMem2, const struct coll * pColl)
 			if ((f2 & MEM_Real) != 0) {
 				return sqlIntFloatCompare(pMem1->u.i,
 							      pMem2->u.r);
+			} else if ((f2 & MEM_UInt) != 0){
+				return sqlIntUIntCompare(pMem1->u.i,
+							pMem2->u.u);
+			} else {
+				return -1;
+			}
+		}
+		if ((f1 & MEM_UInt) != 0) {
+			if ((f2 & MEM_Real) != 0) {
+				return sqlUIntFloatCompare(pMem1->u.u,
+							  pMem2->u.r);
+			} else if ((f2 & MEM_Int) != 0){
+				return -sqlIntUIntCompare(pMem2->u.i,
+							pMem1->u.u);
 			} else {
 				return -1;
 			}
@@ -3411,7 +3477,10 @@ sqlMemCompare(const Mem * pMem1, const Mem * pMem2, const struct coll * pColl)
 		if ((f1 & MEM_Real) != 0) {
 			if ((f2 & MEM_Int) != 0) {
 				return -sqlIntFloatCompare(pMem2->u.i,
-							       pMem1->u.r);
+							   pMem1->u.r);
+			} else if ((f2 & MEM_UInt) != 0) {
+				return -sqlUIntFloatCompare(pMem2->u.u,
+							   pMem1->u.r);
 			} else {
 				return -1;
 			}
@@ -3567,13 +3636,24 @@ sqlVdbeCompareMsgpack(const char **key1,
 			goto do_int;
 		}
 	case MP_UINT:{
-			uint64_t v = mp_decode_uint(&aKey1);
-			if (v > INT64_MAX) {
-				mem1.u.r = (double)v;
-				goto do_float;
+			mem1.u.u = mp_decode_uint(&aKey1);
+
+			if (pKey2->flags & MEM_Int) {
+				rc = -sqlIntUIntCompare(pKey2->u.i,
+						       mem1.u.u);
+			} else if (pKey2->flags & MEM_Real) {
+				rc = sqlUIntFloatCompare(mem1.u.u,
+							pKey2->u.r);
+			} else if (pKey2->flags & MEM_UInt) {
+				if (mem1.u.u < pKey2->u.u) {
+					rc = -1;
+				} else if (mem1.u.u > pKey2->u.u) {
+					rc = +1;
+				}
+			} else {
+				rc = (pKey2->flags & MEM_Null) ? +1 : -1;
 			}
-			mem1.u.i = v;
-			goto do_int;
+			break;
 		}
 	case MP_INT:{
 			mem1.u.i = mp_decode_int(&aKey1);
@@ -3587,6 +3667,9 @@ sqlVdbeCompareMsgpack(const char **key1,
 			} else if (pKey2->flags & MEM_Real) {
 				rc = sqlIntFloatCompare(mem1.u.i,
 							    pKey2->u.r);
+			} else if (pKey2->flags & MEM_UInt) {
+				rc = sqlIntUIntCompare(mem1.u.i,
+							pKey2->u.u);
 			} else {
 				rc = (pKey2->flags & MEM_Null) ? +1 : -1;
 			}
@@ -3724,13 +3807,10 @@ vdbe_decode_msgpack_into_mem(const char *buf, struct Mem *mem, uint32_t *len)
 	}
 	case MP_UINT: {
 		uint64_t v = mp_decode_uint(&buf);
-		if (v > INT64_MAX) {
-			diag_set(ClientError, ER_SQL_EXECUTE,
-				 "integer is overflowed");
-			return -1;
-		}
 		mem->u.i = v;
 		mem->flags = MEM_Int;
+		if (v > INT64_MAX)
+			mem->flags = MEM_UInt;
 		break;
 	}
 	case MP_INT: {

@@ -1192,7 +1192,9 @@ sqlExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
 			 * variable number
 			 */
 			int64_t i;
-			bool is_ok = 0 == sql_atoi64(&z[1], &i, n - 1);
+			bool is_unsigned = false;
+			bool is_ok = 0 == sql_atoi64(&z[1],
+				&i, &is_unsigned, n - 1);
 			x = (ynVar) i;
 			testcase(i == 0);
 			testcase(i == 1);
@@ -3335,23 +3337,29 @@ expr_code_int(struct Parse *parse, struct Expr *expr, bool is_neg,
 		int64_t value;
 		const char *z = expr->u.zToken;
 		assert(z != NULL);
-		int c = sql_dec_or_hex_to_i64(z, &value);
-		if (c == 1 || (c == 2 && !is_neg) ||
-		    (is_neg && value == SMALLEST_INT64)) {
+		bool is_unsigned = false;
+		int c = sql_dec_or_hex_to_i64(z, is_neg, &value, &is_unsigned);
+		if (c < 0) {
 			if (sql_strnicmp(z, "0x", 2) == 0) {
 				sqlErrorMsg(parse,
-						"hex literal too big: %s%s",
-						is_neg ? "-" : "", z);
+					    "hex literal too big: %s%s",
+					    is_neg ? "-" : "", z);
 			} else {
 				sqlErrorMsg(parse,
-						"oversized integer: %s%s",
-						is_neg ? "-" : "", z);
+					    "oversized integer: %s%s",
+					    is_neg ? "-" : "", z);
 			}
 		} else {
-			if (is_neg)
-				value = c == 2 ? SMALLEST_INT64 : -value;
-			sqlVdbeAddOp4Dup8(v, OP_Int64, 0, mem, 0,
-					      (u8 *)&value, P4_INT64);
+			if (is_unsigned)
+				/*
+				 * value is in the range
+				 * [INT64_MAX+1, UINT64_MAX]
+				 */
+				sqlVdbeAddOp4Dup8(v, OP_Int64, 0, mem, 0,
+						  (u8 *)&value, P4_UINT64);
+			else
+				sqlVdbeAddOp4Dup8(v, OP_Int64, 0, mem, 0,
+						  (u8 *)&value, P4_INT64);
 		}
 	}
 }

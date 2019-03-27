@@ -77,6 +77,7 @@ struct sql_bind {
 	union {
 		double d;
 		int64_t i64;
+		uint64_t u64;
 		/** For string or blob. */
 		const char *s;
 	};
@@ -130,14 +131,9 @@ sql_bind_decode(struct sql_bind *bind, int i, const char **packet)
 	switch (mp_typeof(**packet)) {
 	case MP_UINT: {
 		uint64_t n = mp_decode_uint(packet);
-		if (n > INT64_MAX) {
-			diag_set(ClientError, ER_SQL_BIND_VALUE,
-				 sql_bind_name(bind), "INTEGER");
-			return -1;
-		}
-		bind->i64 = (int64_t) n;
-		bind->type = SQL_INTEGER;
-		bind->bytes = sizeof(bind->i64);
+		bind->u64 = n;
+		bind->type = (n > INT64_MAX) ? SQL_UNSIGNED : SQL_INTEGER;
+		bind->bytes = sizeof(bind->u64);
 		break;
 	}
 	case MP_INT:
@@ -258,6 +254,15 @@ sql_column_to_messagepack(struct sql_stmt *stmt, int i,
 			mp_encode_uint(pos, n);
 		else
 			mp_encode_int(pos, n);
+		break;
+	}
+	case SQL_UNSIGNED: {
+		uint64_t n = sql_column_uint64(stmt, i);
+		size = mp_sizeof_uint(n);
+		char *pos = (char *) region_alloc(region, size);
+		if (pos == NULL)
+			goto oom;
+		mp_encode_uint(pos, n);
 		break;
 	}
 	case SQL_FLOAT: {
@@ -388,6 +393,9 @@ sql_bind_column(struct sql_stmt *stmt, const struct sql_bind *p,
 	switch (p->type) {
 	case SQL_INTEGER:
 		rc = sql_bind_int64(stmt, pos, p->i64);
+		break;
+	case SQL_UNSIGNED:
+		rc = sql_bind_uint64(stmt, pos, p->u64);
 		break;
 	case SQL_FLOAT:
 		rc = sql_bind_double(stmt, pos, p->d);
