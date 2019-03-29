@@ -1585,23 +1585,22 @@ countFinalize(sql_context * context)
  * Routines to implement min() and max() aggregate functions.
  */
 static void
-minmaxStep(sql_context * context, int NotUsed, sql_value ** argv)
+minmaxStep(sql_context *context, int not_used, sql_value **argv)
 {
-	Mem *pArg = (Mem *) argv[0];
-	Mem *pBest;
-	UNUSED_PARAMETER(NotUsed);
+	UNUSED_PARAMETER(not_used);
+	sql_value *arg = argv[0];
+	sql_value *best = sql_aggregate_context(context, sizeof(*best));
 
-	pBest = (Mem *) sql_aggregate_context(context, sizeof(*pBest));
-	if (!pBest)
+	if (best == NULL)
 		return;
 
 	if (sql_value_type(argv[0]) == SQL_NULL) {
-		if (pBest->flags)
+		if (best->flags != 0)
 			sqlSkipAccumulatorLoad(context);
-	} else if (pBest->flags) {
+	} else if (best->flags != 0) {
 		int max;
 		int cmp;
-		struct coll *pColl = sqlGetFuncCollSeq(context);
+		struct coll *coll = sqlGetFuncCollSeq(context);
 		/* This step function is used for both the min() and max() aggregates,
 		 * the only difference between the two being that the sense of the
 		 * comparison is inverted. For the max() aggregate, the
@@ -1611,15 +1610,15 @@ minmaxStep(sql_context * context, int NotUsed, sql_value ** argv)
 		 * aggregate, or 0 for min().
 		 */
 		max = sql_user_data(context) != 0;
-		cmp = sqlMemCompare(pBest, pArg, pColl);
-		if ((max && cmp < 0) || (!max && cmp > 0)) {
-			sqlVdbeMemCopy(pBest, pArg);
+		cmp = sqlMemCompare(best, arg, coll);
+		if ((max != 0 && cmp < 0) || (max == 0 && cmp > 0)) {
+			sqlVdbeMemCopy(best, arg);
 		} else {
 			sqlSkipAccumulatorLoad(context);
 		}
 	} else {
-		pBest->db = sql_context_db_handle(context);
-		sqlVdbeMemCopy(pBest, pArg);
+		best->db = sql_context_db_handle(context);
+		sqlVdbeMemCopy(best, arg);
 	}
 }
 
@@ -1628,8 +1627,8 @@ minMaxFinalize(sql_context * context)
 {
 	sql_value *pRes;
 	pRes = (sql_value *) sql_aggregate_context(context, 0);
-	if (pRes) {
-		if (pRes->flags) {
+	if (pRes != NULL) {
+		if (pRes->flags != 0) {
 			sql_result_value(context, pRes);
 		}
 		sqlVdbeMemRelease(pRes);
