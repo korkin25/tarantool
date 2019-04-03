@@ -641,6 +641,7 @@ enum sql_type {
 	SQL_TEXT = 3,
 	SQL_BLOB = 4,
 	SQL_NULL = 5,
+	SQL_TYPE_MAX = 6,
 };
 
 /**

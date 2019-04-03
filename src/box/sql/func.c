@@ -45,6 +45,15 @@
 #include <unicode/uchar.h>
 #include <unicode/ucol.h>
 
+/**
+ * This structure is for keeping context during work of
+ * min/max aggregate functions.
+ */
+struct minmax_context {
+	/** Value being aggregated i.e. current MAX or MIN. */
+	struct Mem best;
+};
+
 static UConverter* pUtf8conv;
 
 /*
@@ -1509,9 +1518,18 @@ sumStep(sql_context * context, int argc, sql_value ** argv)
 			    && sqlAddInt64(&p->iSum, v)) {
 				p->overflow = 1;
 			}
-		} else {
+		} else if (type == SQL_FLOAT) {
 			p->rSum += sql_value_double(argv[0]);
 			p->approx = 1;
+		} else {
+			diag_set(ClientError, ER_ILLEGAL_PARAMS,
+				"SUM, TOTAL and AVG aggregate functions can "
+				"be called only with INTEGER, FLOAT or SCALAR "
+				"arguments. In case of SCALAR arguments, they "
+				"all must have numeric values.",
+				 mem_type_to_str(argv[0]));
+			context->fErrorOrAux = 1;
+			context->isError = SQL_TARANTOOL_ERROR;
 		}
 	}
 }
@@ -1581,6 +1599,25 @@ countFinalize(sql_context * context)
 	sql_result_int64(context, p ? p->n : 0);
 }
 
+/**
+ * Table of aggregate functions args type compatibility.
+ */
+static const bool scalar_type_compatibility[] = {
+	      /*  SQL_INTEGER  SQL_FLOAT  SQL_TEXT  SQL_BLOB  SQL_NULL */
+/* SQL_INTEGER */ true,        true,      false,    false,    false,
+/* SQL_FLOAT   */ true,        true,      false,    false,    false,
+/* SQL_TEXT    */ false,       false,     true,     false,    false,
+/* SQL_BLOB    */ false,       false,     false,    true,     false,
+/* SQL_NULL    */ false,       false,     false,    false,    true,
+};
+
+static bool
+are_scalar_types_compatible(enum sql_type type1, enum sql_type type2)
+{
+	int idx = (type2 - 1) * (SQL_TYPE_MAX - 1) + (type1 - 1);
+	return scalar_type_compatibility[idx];
+}
+
 /*
  * Routines to implement min() and max() aggregate functions.
  */
@@ -1588,18 +1625,43 @@ static void
 minmaxStep(sql_context *context, int not_used, sql_value **argv)
 {
 	UNUSED_PARAMETER(not_used);
-	sql_value *arg = argv[0];
-	sql_value *best = sql_aggregate_context(context, sizeof(*best));
-
-	if (best == NULL)
+	struct minmax_context *minmax_context = (struct minmax_context *)
+		sql_aggregate_context(context, sizeof(*minmax_context));
+	if (minmax_context == NULL)
 		return;
 
-	if (sql_value_type(argv[0]) == SQL_NULL) {
+	sql_value *arg = argv[0];
+	sql_value *best = &minmax_context->best;
+
+	enum sql_type sql_type_current = sql_value_type(arg);
+	if (sql_type_current == SQL_NULL) {
 		if (best->flags != 0)
 			sqlSkipAccumulatorLoad(context);
 	} else if (best->flags != 0) {
-		int max;
-		int cmp;
+		/*
+		 * During proceeding of the function, arguments
+		 * of different types may be encountered (if
+		 * SCALAR type column is proceeded). Some types
+		 * are compatible (INTEGER and FLOAT) and others
+		 * are not (TEXT and BLOB are not compatible with
+		 * any other type). In the later case an error
+		 * is raised.
+		 */
+		enum sql_type sql_type_best = sql_value_type(best);
+		if (sql_type_best != sql_type_current) {
+			bool types_are_compatible =
+				are_scalar_types_compatible(sql_type_best,
+							    sql_type_current);
+			if (!types_are_compatible) {
+				diag_set(ClientError, ER_INCONSISTENT_TYPES,
+					 mem_type_to_str(best),
+					 mem_type_to_str(arg));
+				context->fErrorOrAux = 1;
+				context->isError = SQL_TARANTOOL_ERROR;
+				return;
+			}
+		}
+
 		struct coll *coll = sqlGetFuncCollSeq(context);
 		/* This step function is used for both the min() and max() aggregates,
 		 * the only difference between the two being that the sense of the
@@ -1609,9 +1671,9 @@ minmaxStep(sql_context *context, int not_used, sql_value **argv)
 		 * Therefore the next statement sets variable 'max' to 1 for the max()
 		 * aggregate, or 0 for min().
 		 */
-		max = sql_user_data(context) != 0;
-		cmp = sqlMemCompare(best, arg, coll);
-		if ((max != 0 && cmp < 0) || (max == 0 && cmp > 0)) {
+		bool max = sql_user_data(context) != 0;
+		int cmp_res = sqlMemCompare(best, arg, coll);
+		if ((max && cmp_res < 0) || (! max && cmp_res > 0)) {
 			sqlVdbeMemCopy(best, arg);
 		} else {
 			sqlSkipAccumulatorLoad(context);
@@ -1625,13 +1687,15 @@ minmaxStep(sql_context *context, int not_used, sql_value **argv)
 static void
 minMaxFinalize(sql_context * context)
 {
-	sql_value *pRes;
-	pRes = (sql_value *) sql_aggregate_context(context, 0);
-	if (pRes != NULL) {
-		if (pRes->flags != 0) {
-			sql_result_value(context, pRes);
+	struct minmax_context *minmax_context = (struct minmax_context *)
+		sql_aggregate_context(context, sizeof(*minmax_context));
+	sql_value *res = &minmax_context->best;
+
+	if (res != NULL) {
+		if (res->flags != 0) {
+			sql_result_value(context, res);
 		}
-		sqlVdbeMemRelease(pRes);
+		sqlVdbeMemRelease(res);
 	}
 }
 

@@ -503,13 +503,15 @@ test:do_catchsql_test(
         -- </select1-2.17>
     })
 
-test:do_execsql_test(
+test:do_catchsql_test(
     "select1-2.17.1",
     [[
         SELECT sum(a) FROM t3
     ]], {
         -- <select1-2.17.1>
-        44.0
+        1, "Illegal parameters, SUM, TOTAL and AVG aggregate functions can " ..
+            "be called only with INTEGER, FLOAT or SCALAR arguments. In " ..
+            "case of SCALAR arguments, they all must have numeric values."
         -- </select1-2.17.1>
     })
 
