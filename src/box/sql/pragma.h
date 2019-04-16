@@ -93,9 +93,6 @@ static const char *const pragCName[] = {
 	/*  55 */ "TEXT",
 	/*  56 */ "match",
 	/*  57 */ "TEXT",
-	/* Used by: case_sensitive_like */
-	/*  58 */ "case_sensitive_like",
-	/*  59 */ "INTEGER",
 	/* Used by: count_changes */
 	/*  60 */ "count_changes",
 	/*  61 */ "INTEGER",
@@ -163,11 +160,6 @@ typedef struct PragmaName {
  * to be sorted. For more info see pragma_locate function.
  */
 static const PragmaName aPragmaName[] = {
-	{ /* zName:     */ "case_sensitive_like",
-	 /* ePragTyp:  */ PragTyp_FLAG,
-	 /* ePragFlg:  */ PragFlg_Result0 | PragFlg_NoColumns1,
-	 /* ColNames:  */ 58, 1,
-	 /* iArg:      */ LIKE_CASE_SENS_FLAG},
 	{ /* zName:     */ "collation_list",
 	 /* ePragTyp:  */ PragTyp_COLLATION_LIST,
 	 /* ePragFlg:  */ PragFlg_Result0,
