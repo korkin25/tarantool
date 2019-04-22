@@ -709,7 +709,7 @@ sql_utf8_pattern_compare(const char *pattern,
 			 const char *string,
 			 const char *pattern_end,
 			 const char *string_end,
-			 const int is_like_ci,
+			 const struct coll *coll,
 			 UChar32 match_other)
 {
 	/* Next pattern and input string chars. */
@@ -801,6 +801,7 @@ sql_utf8_pattern_compare(const char *pattern,
 								  pattern_end,
 								  string_end,
 								  is_like_ci,
+								  coll,
 								  match_other);
 				if (bMatch != NO_MATCH)
 					return bMatch;
@@ -940,8 +941,9 @@ likeFunc(sql_context *context, int argc, sql_value **argv)
 	if (!zA || !zB)
 		return;
 	int res;
+	struct coll *coll = sqlGetFuncCollSeq(context);
 	res = sql_utf8_pattern_compare(zB, zA, zB_end, zA_end,
-				       is_like_ci, escape);
+				       is_like_ci, coll, escape);
 	if (res == INVALID_PATTERN) {
 		diag_set(ClientError, ER_SQL_EXECUTE, "LIKE pattern can only "\
 			 "contain UTF-8 characters");
