@@ -109,6 +109,13 @@ resolveAlias(Parse * pParse,	/* Parsing context */
 		return;
 	if (zType[0] != 'G')
 		incrAggFunctionDepth(pDup, nSubquery);
+	/*
+	 * If there was typed more than one explicit collations in
+	 * query, it will be a sequence of left nodes with the
+	 * collations in a tree. There is nothing special about
+	 * keeping the sequence. Only one collation could be
+	 * stored, but the present solution is simpler.
+	 */
 	if (pExpr->op == TK_COLLATE) {
 		pDup =
 		    sqlExprAddCollateString(pParse, pDup, pExpr->u.zToken);

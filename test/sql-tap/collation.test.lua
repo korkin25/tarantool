@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(174)
+test:plan(177)
 
 local prefix = "collation-"
 
@@ -528,5 +528,22 @@ test:do_catchsql_test(
         "collation-2.5.0",
         'CREATE TABLE test3 (a int, b int, c int, PRIMARY KEY (a, a COLLATE foo, b, c))',
         {1, "Collation 'FOO' does not exist"})
+
+-- gh-3805 Check that collation is not ignored.
+
+test:do_execsql_test(
+    "collation-2.6.0",
+    [[ CREATE TABLE a (id INT PRIMARY KEY, s TEXT) ]],
+    {})
+
+test:do_execsql_test(
+    "collation-2.6.1",
+    [[ INSERT INTO a VALUES (1, 'B'), (2, 'b') ]],
+    {})
+
+test:do_execsql_test(
+    "collation-2.6.2",
+    [[ SELECT s COLLATE "unicode_ci" FROM a ORDER BY s COLLATE "unicode" ]],
+    {"b","B"})
 
 test:finish_test()
