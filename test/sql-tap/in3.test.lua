@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(27)
+test:plan(25)
 
 --!./tcltestrunner.lua
 -- 2007 November 29
@@ -184,33 +184,6 @@ test:do_test(
         -- <in3-1.13>
         1, 1, 3, 5
         -- </in3-1.13>
-    })
-
-
-
--- The first of these queries has to use the temp-table, because the 
--- collation sequence used for the index on "t1.a" does not match the
--- collation sequence used by the "IN" comparison. The second does not
--- require a temp-table, because the collation sequences match.
---
-test:do_test(
-    "in3-1.14",
-    function()
-        return exec_neph(" SELECT a FROM t1 WHERE a COLLATE \"unicode_ci\" IN (SELECT a FROM t1) ")
-    end, {
-        -- <in3-1.14>
-        1, 1, 3, 5
-        -- </in3-1.14>
-    })
-
-test:do_test(
-    "in3-1.15",
-    function()
-        return exec_neph(" SELECT a FROM t1 WHERE a COLLATE \"binary\" IN (SELECT a FROM t1) ")
-    end, {
-        -- <in3-1.15>
-        1, 1, 3, 5
-        -- </in3-1.15>
     })
 
 -- Neither of these queries require a temp-table. The collation sequence
