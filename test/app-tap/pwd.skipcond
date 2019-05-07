@@ -1,6 +1,7 @@
 import platform
 
-# Disabled on FreeBSD due to flaky fail #4271.
+# Disabled on FreeBSD due to fail #4271:
+#   Data segment size exceeds process limit
 if platform.system() == 'FreeBSD':
     self.skip = 1
 
