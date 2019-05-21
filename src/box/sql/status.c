@@ -143,7 +143,7 @@ sql_status64(int op,
 	if (resetFlag) {
 		wsdStat.mxValue[op] = wsdStat.nowValue[op];
 	}
-	return SQL_OK;
+	return 0;
 }
 
 int
@@ -170,7 +170,7 @@ sql_db_status(sql * db,	/* The database connection whose status is desired */
 		  int resetFlag	/* Reset high-water mark if true */
     )
 {
-	int rc = SQL_OK;	/* Return code */
+	int rc = 0;	/* Return code */
 	switch (op) {
 	case SQL_DBSTATUS_LOOKASIDE_USED:{
 			*pCurrent = db->lookaside.nOut;

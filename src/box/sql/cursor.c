@@ -94,7 +94,7 @@ sqlCursorIsValidNN(BtCursor *pCur)
  * For sqlCursorPayload(), the caller must ensure that pCur is pointing
  * to a valid row in the table.
  *
- * Return SQL_OK on success or an error code if anything goes
+ * Return 0 on success or an error code if anything goes
  * wrong.  An error is returned if "offset+amt" is larger than
  * the available payload.
  */
@@ -110,7 +110,7 @@ sqlCursorPayload(BtCursor *pCur, u32 offset, u32 amt, void *pBuf)
 	pPayload = tarantoolsqlPayloadFetch(pCur, &sz);
 	assert((uptr) (offset + amt) <= sz);
 	memcpy(pBuf, pPayload + offset, amt);
-	return SQL_OK;
+	return 0;
 }
 
 /* Move the cursor so that it points to an entry near the key

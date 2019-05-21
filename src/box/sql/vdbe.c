@@ -247,7 +247,7 @@ allocateCursor(
 		sqlVdbeFreeCursor(p, p->apCsr[iCur]);
 		p->apCsr[iCur] = 0;
 	}
-	if (SQL_OK==sqlVdbeMemClearAndResize(pMem, nByte)) {
+	if (0==sqlVdbeMemClearAndResize(pMem, nByte)) {
 		p->apCsr[iCur] = pCx = (VdbeCursor*)pMem->z;
 		memset(pCx, 0, offsetof(VdbeCursor,uc));
 		pCx->eCurType = eCurType;
@@ -372,7 +372,7 @@ static u16 SQL_NOINLINE computeNumericType(Mem *pMem)
 	assert((pMem->flags & (MEM_Str|MEM_Blob))!=0);
 	if (sqlAtoF(pMem->z, &pMem->u.r, pMem->n)==0)
 		return 0;
-	if (sql_atoi64(pMem->z, (int64_t *)&pMem->u.i, pMem->n)==SQL_OK)
+	if (sql_atoi64(pMem->z, (int64_t *)&pMem->u.i, pMem->n)==0)
 		return MEM_Int;
 	return MEM_Real;
 }
@@ -615,7 +615,7 @@ int sqlVdbeExec(Vdbe *p)
 #ifdef SQL_DEBUG
 	int nExtraDelete = 0;      /* Verifies FORDELETE and AUXDELETE flags */
 #endif
-	int rc = SQL_OK;        /* Value to return */
+	int rc = 0;        /* Value to return */
 	sql *db = p->db;       /* The database */
 	int iCompare = 0;          /* Result of last comparison */
 	unsigned nVmStep = 0;      /* Number of virtual machine steps */
@@ -638,8 +638,8 @@ int sqlVdbeExec(Vdbe *p)
 		 */
 		goto no_mem;
 	}
-	assert(p->rc==SQL_OK || (p->rc&0xff)==SQL_BUSY);
-	p->rc = SQL_OK;
+	assert(p->rc==0 || (p->rc&0xff)==SQL_BUSY);
+	p->rc = 0;
 	p->iCurrentTime = 0;
 	assert(p->explain==0);
 	p->pResultSet = 0;
@@ -676,7 +676,7 @@ int sqlVdbeExec(Vdbe *p)
 		/* Errors are detected by individual opcodes, with an immediate
 		 * jumps to abort_due_to_error.
 		 */
-		assert(rc==SQL_OK);
+		assert(rc==0);
 
 		assert(pOp>=aOp && pOp<&aOp[p->nOp]);
 #ifdef VDBE_PROFILE
@@ -916,7 +916,7 @@ case OP_HaltIfNull: {      /* in3 */
  *
  * P1 is the result code returned by sql_exec(),
  * sql_reset(), or sql_finalize().  For a normal halt,
- * this should be SQL_OK (0).
+ * this should be 0 (0).
  * For errors, it can be some other value.  If P1!=0 then P2 will
  * determine whether or not to rollback the current transaction.
  * Do not rollback if P2==ON_CONFLICT_ACTION_FAIL. Do the rollback
@@ -949,7 +949,7 @@ case OP_Halt: {
 	int pcx;
 
 	pcx = (int)(pOp - aOp);
-	if (pOp->p1==SQL_OK && p->pFrame) {
+	if (pOp->p1==0 && p->pFrame) {
 		/* Halt the sub-program. Return control to the parent frame. */
 		pFrame = p->pFrame;
 		p->pFrame = pFrame->pParent;
@@ -981,11 +981,11 @@ case OP_Halt: {
 		assert(! diag_is_empty(diag_get()));
 	}
 	rc = sqlVdbeHalt(p);
-	assert(rc==SQL_BUSY || rc==SQL_OK || rc==SQL_ERROR);
+	assert(rc==SQL_BUSY || rc==0 || rc==SQL_ERROR);
 	if (rc==SQL_BUSY) {
 		p->rc = SQL_BUSY;
 	} else {
-		assert(rc==SQL_OK || (p->rc&0xff)==SQL_CONSTRAINT);
+		assert(rc==0 || (p->rc&0xff)==SQL_CONSTRAINT);
 		rc = p->rc ? SQL_TARANTOOL_ERROR : SQL_DONE;
 	}
 	goto vdbe_return;
@@ -1058,7 +1058,7 @@ case OP_String8: {         /* same as TK_STRING, out2 */
 	if (pOp->p1>db->aLimit[SQL_LIMIT_LENGTH]) {
 		goto too_big;
 	}
-	assert(rc==SQL_OK);
+	assert(rc==0);
 	/* Fall through to the next case, OP_String */
 	FALLTHROUGH;
 }
@@ -1331,7 +1331,7 @@ case OP_ResultRow: {
 	 * not return the number of rows modified. And do not RELEASE the statement
 	 * transaction. It needs to be rolled back.
 	 */
-	if (sqlVdbeCheckFk(p, 0) != SQL_OK) {
+	if (sqlVdbeCheckFk(p, 0) != 0) {
 		assert(user_session->sql_flags&SQL_CountRows);
 		goto abort_due_to_error;
 	}
@@ -1353,7 +1353,7 @@ case OP_ResultRow: {
 	 */
 	assert(p->iStatement==0 || user_session->sql_flags&SQL_CountRows);
 	rc = sqlVdbeCloseStatement(p, SAVEPOINT_RELEASE);
-	assert(rc==SQL_OK);
+	assert(rc==0);
 
 	/* Invalidate all ephemeral cursor row caches */
 	p->cacheCtr = (p->cacheCtr + 2)|1;
@@ -1432,7 +1432,7 @@ case OP_Concat: {           /* same as TK_CONCAT, in1, in2, out3 */
 			 mem_type_to_str(pIn2), mem_type_to_str(pIn1));
 		goto abort_due_to_error;
 	}
-	if (ExpandBlob(pIn1) != SQL_OK || ExpandBlob(pIn2) != SQL_OK)
+	if (ExpandBlob(pIn1) != 0 || ExpandBlob(pIn2) != 0)
 		goto abort_due_to_error;
 	nByte = pIn1->n + pIn2->n;
 	if (nByte>db->aLimit[SQL_LIMIT_LENGTH]) {
@@ -1892,7 +1892,7 @@ case OP_Realify: {                  /* in1 */
  */
 case OP_Cast: {                  /* in1 */
 	pIn1 = &aMem[pOp->p1];
-	if (ExpandBlob(pIn1) != SQL_OK)
+	if (ExpandBlob(pIn1) != 0)
 		goto abort_due_to_error;
 	rc = sqlVdbeMemCast(pIn1, pOp->p2);
 	UPDATE_MAX_BLOBSIZE(pIn1);
@@ -2564,7 +2564,7 @@ case OP_Column: {
 	} else {
 		memset(&sMem, 0, sizeof(sMem));
 		if (sqlVdbeMemFromBtree(pC->uc.pCursor, 0, pC->payloadSize,
-					&sMem) != SQL_OK)
+					&sMem) != 0)
 			goto abort_due_to_error;
 		zData = (u8*)sMem.z;
 		zEnd = zData + pC->payloadSize;
@@ -2617,7 +2617,7 @@ case OP_Column: {
 	 * reach this point if aOffset[p2], aOffset[p2+1] are
 	 * all valid.
 	 */
-	assert(rc==SQL_OK);
+	assert(rc==0);
 	assert(sqlVdbeCheckMemInvariants(pDest));
 	if (VdbeMemDynamic(pDest)) {
 		sqlVdbeMemSetNull(pDest);
@@ -2829,10 +2829,10 @@ case OP_Count: {         /* out2 */
 	assert(pCrsr);
 	nEntry = 0;  /* Not needed.  Only used to silence a warning. */
 	if (pCrsr->curFlags & BTCF_TaCursor) {
-		if (tarantoolsqlCount(pCrsr, &nEntry) != SQL_OK)
+		if (tarantoolsqlCount(pCrsr, &nEntry) != 0)
 			goto abort_due_to_error;
 	} else if (pCrsr->curFlags & BTCF_TEphemCursor) {
-		if (tarantoolsqlEphemeralCount(pCrsr, &nEntry) != SQL_OK)
+		if (tarantoolsqlEphemeralCount(pCrsr, &nEntry) != 0)
 			goto abort_due_to_error;
 	} else {
 		unreachable();
@@ -2899,7 +2899,7 @@ case OP_Savepoint: {
 			 */
 			int isTransaction = pSavepoint->pNext == 0;
 			if (isTransaction && p1==SAVEPOINT_RELEASE) {
-				if ((rc = sqlVdbeCheckFk(p, 1))!=SQL_OK) {
+				if ((rc = sqlVdbeCheckFk(p, 1))!=0) {
 					goto vdbe_return;
 				}
 				if (sqlVdbeHalt(p)==SQL_BUSY) {
@@ -2907,7 +2907,7 @@ case OP_Savepoint: {
 					p->rc = rc = SQL_BUSY;
 					goto vdbe_return;
 				}
-				if (p->rc != SQL_OK)
+				if (p->rc != 0)
 					goto abort_due_to_error;
 			} else {
 				if (p1==SAVEPOINT_ROLLBACK)
@@ -3156,7 +3156,7 @@ case OP_SorterOpen: {
 	pCx = allocateCursor(p, pOp->p1, pOp->p2, CURTYPE_SORTER);
 	if (pCx==0) goto no_mem;
 	pCx->key_def = def;
-	if (sqlVdbeSorterInit(db, pCx) != SQL_OK)
+	if (sqlVdbeSorterInit(db, pCx) != 0)
 		goto abort_due_to_error;
 	break;
 }
@@ -3469,7 +3469,7 @@ case OP_SeekGT: {       /* jump, in3 */
 #endif
 	r.eqSeen = 0;
 	r.opcode = oc;
-	if (sqlCursorMovetoUnpacked(pC->uc.pCursor, &r, &res) != SQL_OK)
+	if (sqlCursorMovetoUnpacked(pC->uc.pCursor, &r, &res) != 0)
 		goto abort_due_to_error;
 	if (eqOnly && r.eqSeen==0) {
 		assert(res!=0);
@@ -3482,7 +3482,7 @@ case OP_SeekGT: {       /* jump, in3 */
 	if (oc>=OP_SeekGE) {  assert(oc==OP_SeekGE || oc==OP_SeekGT);
 		if (res<0 || (res==0 && oc==OP_SeekGT)) {
 			res = 0;
-			if (sqlCursorNext(pC->uc.pCursor, &res) != SQL_OK)
+			if (sqlCursorNext(pC->uc.pCursor, &res) != 0)
 				goto abort_due_to_error;
 		} else {
 			res = 0;
@@ -3491,7 +3491,7 @@ case OP_SeekGT: {       /* jump, in3 */
 		assert(oc==OP_SeekLT || oc==OP_SeekLE);
 		if (res>0 || (res==0 && oc==OP_SeekLT)) {
 			res = 0;
-			if (sqlCursorPrevious(pC->uc.pCursor, &res) != SQL_OK)
+			if (sqlCursorPrevious(pC->uc.pCursor, &res) != 0)
 				goto abort_due_to_error;
 		} else {
 			/* res might be negative because the table is empty.  Check to
@@ -3636,8 +3636,8 @@ case OP_Found: {        /* jump, in3 */
 	rc = sqlCursorMovetoUnpacked(pC->uc.pCursor, pIdxKey, &res);
 	if (pFree)
 		sqlDbFree(db, pFree);
-	assert(rc == SQL_OK || rc == SQL_TARANTOOL_ERROR);
-	if (rc != SQL_OK)
+	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
+	if (rc != 0)
 		goto abort_due_to_error;
 	pC->seekResult = res;
 	alreadyExists = (res==0);
@@ -3880,7 +3880,7 @@ case OP_SorterData: {
 	pOut = &aMem[pOp->p2];
 	pC = p->apCsr[pOp->p1];
 	assert(isSorter(pC));
-	if (sqlVdbeSorterRowkey(pC, pOut) != SQL_OK)
+	if (sqlVdbeSorterRowkey(pC, pOut) != 0)
 		goto abort_due_to_error;
 	assert(pOut->flags & MEM_Blob);
 	assert(pOp->p1>=0 && pOp->p1<p->nCursor);
@@ -3950,8 +3950,8 @@ case OP_RowData: {
 	testcase( n==0);
 
 	sqlVdbeMemRelease(pOut);
-	if (sql_vdbe_mem_alloc_region(pOut, n) != SQL_OK ||
-	    sqlCursorPayload(pCrsr, 0, n, pOut->z) != SQL_OK)
+	if (sql_vdbe_mem_alloc_region(pOut, n) != 0 ||
+	    sqlCursorPayload(pCrsr, 0, n, pOut->z) != 0)
 		goto abort_due_to_error;
 	UPDATE_MAX_BLOBSIZE(pOut);
 	REGISTER_TRACE(pOp->p2, pOut);
@@ -4087,16 +4087,16 @@ case OP_Rewind: {        /* jump */
 	pC->seekOp = OP_Rewind;
 #endif
 	if (isSorter(pC)) {
-		if (sqlVdbeSorterRewind(pC, &res) != SQL_OK)
+		if (sqlVdbeSorterRewind(pC, &res) != 0)
 			goto abort_due_to_error;
 	} else {
 		assert(pC->eCurType==CURTYPE_TARANTOOL);
 		pCrsr = pC->uc.pCursor;
 		assert(pCrsr);
-		if (tarantoolsqlFirst(pCrsr, &res) != SQL_OK)
+		if (tarantoolsqlFirst(pCrsr, &res) != 0)
 			rc = SQL_TARANTOOL_ERROR;
 		pC->cacheStatus = CACHE_STALE;
-		if (rc != SQL_OK)
+		if (rc != 0)
 			goto abort_due_to_error;
 	}
 	pC->nullRow = (u8)res;
@@ -4244,8 +4244,8 @@ case OP_SorterInsert: {      /* in2 */
 	assert(isSorter(cursor));
 	pIn2 = &aMem[pOp->p2];
 	assert((pIn2->flags & MEM_Blob) != 0);
-	if (ExpandBlob(pIn2) != SQL_OK ||
-	    sqlVdbeSorterWrite(cursor, pIn2) != SQL_OK)
+	if (ExpandBlob(pIn2) != 0 ||
+	    sqlVdbeSorterWrite(cursor, pIn2) != 0)
 		goto abort_due_to_error;
 	break;
 }
@@ -4275,7 +4275,7 @@ case OP_IdxInsert: {
 	assert((pIn2->flags & MEM_Blob) != 0);
 	if (pOp->p5 & OPFLAG_NCHANGE)
 		p->nChange++;
-	if (ExpandBlob(pIn2) != SQL_OK)
+	if (ExpandBlob(pIn2) != 0)
 		goto abort_due_to_error;
 	struct space *space;
 	if (pOp->p4type == P4_SPACEPTR)
@@ -4300,7 +4300,7 @@ case OP_IdxInsert: {
 
 	if (pOp->p5 & OPFLAG_OE_IGNORE) {
 		/* Ignore any kind of failes and do not raise error message */
-		rc = SQL_OK;
+		rc = 0;
 		/* If we are in trigger, increment ignore raised counter */
 		if (p->pFrame)
 			p->ignoreRaised++;
@@ -4309,7 +4309,7 @@ case OP_IdxInsert: {
 	} else if (pOp->p5 & OPFLAG_OE_ROLLBACK) {
 		p->errorAction = ON_CONFLICT_ACTION_ROLLBACK;
 	}
-	assert(rc == SQL_OK || rc == SQL_TARANTOOL_ERROR);
+	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
 	if (rc != 0)
 		goto abort_due_to_error;
 	break;
@@ -4386,7 +4386,7 @@ case OP_Update: {
 		goto abort_due_to_error;
 	}
 
-	assert(rc == SQL_OK);
+	assert(rc == 0);
 	if (box_update(space->def->id, 0, key_mem->z, key_mem->z + key_mem->n,
 		       ops, ops + ops_size, 0, NULL) != 0)
 		rc = SQL_TARANTOOL_ERROR;
@@ -4396,7 +4396,7 @@ case OP_Update: {
 		 * Ignore any kind of fails and do not raise
 		 * error message
 		 */
-		rc = SQL_OK;
+		rc = 0;
 		/*
 		 * If we are in trigger, increment ignore raised
 		 * counter.
@@ -4408,7 +4408,7 @@ case OP_Update: {
 	} else if (pOp->p5 & OPFLAG_OE_ROLLBACK) {
 		p->errorAction = ON_CONFLICT_ACTION_ROLLBACK;
 	}
-	assert(rc == SQL_OK || rc == SQL_TARANTOOL_ERROR);
+	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
 	if (rc != 0)
 		goto abort_due_to_error;
 	break;
@@ -4459,7 +4459,7 @@ case OP_SDelete: {
 	struct space *space = space_by_id(pOp->p1);
 	assert(space != NULL);
 	assert(space_is_system(space));
-	if (sql_delete_by_key(space, 0, pIn2->z, pIn2->n) != SQL_OK)
+	if (sql_delete_by_key(space, 0, pIn2->z, pIn2->n) != 0)
 		goto abort_due_to_error;
 	if (pOp->p5 & OPFLAG_NCHANGE)
 		p->nChange++;
@@ -4493,15 +4493,15 @@ case OP_IdxDelete: {
 	r.default_rc = 0;
 	r.aMem = &aMem[pOp->p2];
 	r.opcode = OP_IdxDelete;
-	if (sqlCursorMovetoUnpacked(pCrsr, &r, &res) != SQL_OK)
+	if (sqlCursorMovetoUnpacked(pCrsr, &r, &res) != 0)
 		goto abort_due_to_error;
 	if (res==0) {
 		assert(pCrsr->eState == CURSOR_VALID);
 		if (pCrsr->curFlags & BTCF_TaCursor) {
-			if (tarantoolsqlDelete(pCrsr, 0) != SQL_OK)
+			if (tarantoolsqlDelete(pCrsr, 0) != 0)
 				goto abort_due_to_error;
 		} else if (pCrsr->curFlags & BTCF_TEphemCursor) {
-			if (tarantoolsqlEphemeralDelete(pCrsr) != SQL_OK)
+			if (tarantoolsqlEphemeralDelete(pCrsr) != 0)
 				goto abort_due_to_error;
 		} else {
 			unreachable();
@@ -4620,7 +4620,7 @@ case OP_Clear: {
 			goto abort_due_to_error;
 	} else {
 		uint32_t tuple_count;
-		if (tarantoolsqlClearTable(space, &tuple_count) != SQL_OK)
+		if (tarantoolsqlClearTable(space, &tuple_count) != 0)
 			goto abort_due_to_error;
 		if ((pOp->p5 & OPFLAG_NCHANGE) != 0)
 			p->nChange += tuple_count;
@@ -4647,7 +4647,7 @@ case OP_ResetSorter: {
 	} else {
 		assert(pC->eCurType==CURTYPE_TARANTOOL);
 		assert(pC->uc.pCursor->curFlags & BTCF_TEphemCursor);
-		if (tarantoolsqlEphemeralClearTable(pC->uc.pCursor) != SQL_OK)
+		if (tarantoolsqlEphemeralClearTable(pC->uc.pCursor) != 0)
 			goto abort_due_to_error;
 	}
 	break;
@@ -4681,7 +4681,7 @@ case OP_RenameTable: {
 	zNewTableName = pOp->p4.z;
 	zOldTableName = sqlDbStrNDup(db, zOldTableName,
 					 sqlStrlen30(zOldTableName));
-	if (sql_rename_table(space_id, zNewTableName) != SQL_OK)
+	if (sql_rename_table(space_id, zNewTableName) != 0)
 		goto abort_due_to_error;
 	/*
 	 * Rebuild 'CREATE TRIGGER' expressions of all triggers
@@ -4702,7 +4702,7 @@ case OP_RenameTable: {
 		 * try again.
 		 */
 		if (tarantoolsqlRenameTrigger(trigger->zName, zOldTableName,
-					      zNewTableName) != SQL_OK)
+					      zNewTableName) != 0)
 			goto abort_due_to_error;
 		trigger = next_trigger;
 	}
@@ -4718,7 +4718,7 @@ case OP_RenameTable: {
  */
 case OP_LoadAnalysis: {
 	assert(pOp->p1==0 );
-	if (sql_analysis_load(db) != SQL_OK)
+	if (sql_analysis_load(db) != 0)
 		goto abort_due_to_error;
 	break;
 }
@@ -5243,7 +5243,7 @@ case OP_IncMaxid: {
 	assert(pOp->p1 > 0);
 	pOut = &aMem[pOp->p1];
 
-	if (tarantoolsqlIncrementMaxid((uint64_t*) &pOut->u.i) != SQL_OK)
+	if (tarantoolsqlIncrementMaxid((uint64_t*) &pOut->u.i) != 0)
 		goto abort_due_to_error;
 	pOut->flags = MEM_Int;
 	break;
@@ -5315,10 +5315,10 @@ abort_due_to_error:
 vdbe_return:
 	testcase( nVmStep>0);
 	p->aCounter[SQL_STMTSTATUS_VM_STEP] += (int)nVmStep;
-	assert(rc!=SQL_OK || nExtraDelete==0
+	assert(rc!=0 || nExtraDelete==0
 		|| sql_strlike_ci("DELETE%", p->zSql, 0) != 0
 		);
-	assert(rc == SQL_OK || rc == SQL_BUSY || rc == SQL_TARANTOOL_ERROR ||
+	assert(rc == 0 || rc == SQL_BUSY || rc == SQL_TARANTOOL_ERROR ||
 	       rc == SQL_ROW || rc == SQL_DONE);
 	return rc;
 

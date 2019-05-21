@@ -71,7 +71,7 @@ sql_init()
 
 	current_session()->sql_flags |= default_sql_flags;
 
-	if (sql_init_db(&db) != SQL_OK)
+	if (sql_init_db(&db) != 0)
 		panic("failed to initialize SQL subsystem");
 
 	assert(db != NULL);
@@ -86,7 +86,7 @@ sql_load_schema()
 	if (stat->def->field_count == 0)
 		return;
 	db->init.busy = 1;
-	if (sql_analysis_load(db) != SQL_OK) {
+	if (sql_analysis_load(db) != 0) {
 		if(!diag_is_empty(&fiber()->diag)) {
 			diag_log();
 		}
@@ -218,7 +218,7 @@ int tarantoolsqlNext(BtCursor *pCur, int *pRes)
 {
 	if (pCur->eState == CURSOR_INVALID) {
 		*pRes = 1;
-		return SQL_OK;
+		return 0;
 	}
 	assert(iterator_direction(pCur->iter_type) > 0);
 	return cursor_advance(pCur, pRes);
@@ -233,7 +233,7 @@ int tarantoolsqlPrevious(BtCursor *pCur, int *pRes)
 {
 	if (pCur->eState == CURSOR_INVALID) {
 		*pRes = 1;
-		return SQL_OK;
+		return 0;
 	}
 	assert(iterator_direction(pCur->iter_type) < 0);
 	return cursor_advance(pCur, pRes);
@@ -316,7 +316,7 @@ int tarantoolsqlMovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey,
  * @param pCur Cursor which will point to ephemeral space.
  * @param[out] pnEntry Number of tuples in ephemeral space.
  *
- * @retval SQL_OK
+ * @retval 0
  */
 int tarantoolsqlEphemeralCount(struct BtCursor *pCur, i64 *pnEntry)
 {
@@ -324,7 +324,7 @@ int tarantoolsqlEphemeralCount(struct BtCursor *pCur, i64 *pnEntry)
 
 	struct index *primary_index = space_index(pCur->space, 0 /* PK */);
 	*pnEntry = index_count(primary_index, pCur->iter_type, NULL, 0);
-	return SQL_OK;
+	return 0;
 }
 
 int tarantoolsqlCount(BtCursor *pCur, i64 *pnEntry)
@@ -332,7 +332,7 @@ int tarantoolsqlCount(BtCursor *pCur, i64 *pnEntry)
 	assert(pCur->curFlags & BTCF_TaCursor);
 
 	*pnEntry = index_count(pCur->index, pCur->iter_type, NULL, 0);
-	return SQL_OK;
+	return 0;
 }
 
 struct space *
@@ -406,7 +406,7 @@ int tarantoolsqlEphemeralInsert(struct space *space, const char *tuple,
 	mp_tuple_assert(tuple, tuple_end);
 	if (space_ephemeral_replace(space, tuple, tuple_end) != 0)
 		return SQL_TARANTOOL_ERROR;
-	return SQL_OK;
+	return 0;
 }
 
 /* Simply delete ephemeral space by calling space_delete(). */
@@ -416,7 +416,7 @@ int tarantoolsqlEphemeralDrop(BtCursor *pCur)
 	assert(pCur->curFlags & BTCF_TEphemCursor);
 	space_delete(pCur->space);
 	pCur->space = NULL;
-	return SQL_OK;
+	return 0;
 }
 
 static inline int
@@ -432,7 +432,7 @@ insertOrReplace(struct space *space, const char *tuple, const char *tuple_end,
 	request.type = type;
 	mp_tuple_assert(request.tuple, request.tuple_end);
 	int rc = box_process_rw(&request, space, NULL);
-	return rc == 0 ? SQL_OK : SQL_TARANTOOL_ERROR;
+	return rc == 0 ? 0 : SQL_TARANTOOL_ERROR;
 }
 
 int tarantoolsqlInsert(struct space *space, const char *tuple,
@@ -453,7 +453,7 @@ int tarantoolsqlReplace(struct space *space, const char *tuple,
  *
  * @param pCur Cursor pointing to ephemeral space.
  *
- * @retval SQL_OK on success, SQL_TARANTOOL_ERROR otherwise.
+ * @retval 0 on success, SQL_TARANTOOL_ERROR otherwise.
  */
 int tarantoolsqlEphemeralDelete(BtCursor *pCur)
 {
@@ -474,7 +474,7 @@ int tarantoolsqlEphemeralDelete(BtCursor *pCur)
 		diag_log();
 		return SQL_TARANTOOL_ERROR;
 	}
-	return SQL_OK;
+	return 0;
 }
 
 int tarantoolsqlDelete(BtCursor *pCur, u8 flags)
@@ -497,7 +497,7 @@ int tarantoolsqlDelete(BtCursor *pCur, u8 flags)
 	rc = sql_delete_by_key(pCur->space, pCur->index->def->iid, key,
 			       key_size);
 
-	return rc == 0 ? SQL_OK : SQL_TARANTOOL_ERROR;
+	return rc == 0 ? 0 : SQL_TARANTOOL_ERROR;
 }
 
 int
@@ -515,7 +515,7 @@ sql_delete_by_key(struct space *space, uint32_t iid, char *key,
 	assert(space_index(space, iid)->def->opts.is_unique);
 	int rc = box_process_rw(&request, space, &unused);
 
-	return rc == 0 ? SQL_OK : SQL_TARANTOOL_ERROR;
+	return rc == 0 ? 0 : SQL_TARANTOOL_ERROR;
 }
 
 /*
@@ -525,7 +525,7 @@ sql_delete_by_key(struct space *space, uint32_t iid, char *key,
  *
  * @param pCur Cursor pointing to ephemeral space.
  *
- * @retval SQL_OK on success, SQL_TARANTOOL_ERROR otherwise.
+ * @retval 0 on success, SQL_TARANTOOL_ERROR otherwise.
  */
 int tarantoolsqlEphemeralClearTable(BtCursor *pCur)
 {
@@ -554,7 +554,7 @@ int tarantoolsqlEphemeralClearTable(BtCursor *pCur)
 	}
 	iterator_delete(it);
 
-	return SQL_OK;
+	return 0;
 }
 
 /*
@@ -590,7 +590,7 @@ int tarantoolsqlClearTable(struct space *space, uint32_t *tuple_count)
 	}
 	iterator_delete(iter);
 
-	return SQL_OK;
+	return 0;
 }
 
 /*
@@ -668,7 +668,7 @@ int tarantoolsqlRenameTrigger(const char *trig_name,
 	if (box_replace(BOX_TRIGGER_ID, new_tuple, new_tuple_end, NULL) != 0)
 		return SQL_TARANTOOL_ERROR;
 	else
-		return SQL_OK;
+		return 0;
 
 rename_fail:
 	diag_set(ClientError, ER_SQL_EXECUTE, "can't modify name of space "
@@ -828,7 +828,7 @@ tarantoolsqlIncrementMaxid(uint64_t *space_max_id)
 	if (box_process_rw(&request, space_schema, &res) != 0 || res == NULL ||
 	    tuple_field_u64(res, 1, space_max_id) != 0)
 		return SQL_TARANTOOL_ERROR;
-	return SQL_OK;
+	return 0;
 }
 
 /*
@@ -873,7 +873,7 @@ key_alloc(BtCursor *cur, size_t key_size)
  * @param key Start of buffer containing key.
  * @param key_end End of buffer containing key.
  *
- * @retval SQL_OK on success, SQL_TARANTOOL_ERROR otherwise.
+ * @retval 0 on success, SQL_TARANTOOL_ERROR otherwise.
  */
 static int
 cursor_seek(BtCursor *pCur, int *pRes)
@@ -919,7 +919,7 @@ cursor_seek(BtCursor *pCur, int *pRes)
  * @param pCur Cursor which contains space and tuple.
  * @param[out] pRes Flag which is 0 if reached end of space, 1 otherwise.
  *
- * @retval SQL_OK on success, SQL_TARANTOOL_ERROR otherwise.
+ * @retval 0 on success, SQL_TARANTOOL_ERROR otherwise.
  */
 static int
 cursor_advance(BtCursor *pCur, int *pRes)
@@ -939,7 +939,7 @@ cursor_advance(BtCursor *pCur, int *pRes)
 		*pRes = 1;
 	}
 	pCur->last_tuple = tuple;
-	return SQL_OK;
+	return 0;
 }
 
 /*********************************************************************

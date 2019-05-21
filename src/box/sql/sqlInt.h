@@ -356,10 +356,8 @@ struct sql_vfs {
 #define SQL_LIMIT_WORKER_THREADS           10
 
 enum sql_ret_code {
-	/** Result of a routine is ok. */
-	SQL_OK = 0,
 	/** Common error code. */
-	SQL_ERROR,
+	SQL_ERROR = 1,
 	/** Access permission denied. */
 	SQL_PERM,
 	/** Callback routine requested an abort. */

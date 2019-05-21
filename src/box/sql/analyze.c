@@ -1518,7 +1518,7 @@ load_stat_from_space(struct sql *db, const char *sql_select_prepare,
 		stats[current_idx_count].sample_count++;
 	}
 	rc = sql_finalize(stmt);
-	if (rc == SQL_OK && prev_index != NULL)
+	if (rc == 0 && prev_index != NULL)
 		init_avg_eq(prev_index, &stats[current_idx_count]);
 	assert(current_idx_count <= index_count);
 	for (uint32_t i = 0; i < current_idx_count; ++i) {
@@ -1712,7 +1712,7 @@ sql_analysis_load(struct sql *db)
 		goto fail;
 	if (info.index_count == 0) {
 		box_txn_commit();
-		return SQL_OK;
+		return 0;
 	}
 	/*
 	 * This query is used to allocate enough memory for
@@ -1772,7 +1772,7 @@ sql_analysis_load(struct sql *db)
 		goto fail;
 	if (box_txn_commit() != 0)
 		return SQL_TARANTOOL_ERROR;
-	return SQL_OK;
+	return 0;
 fail:
 	box_txn_rollback();
 	return SQL_TARANTOOL_ERROR;
