@@ -190,56 +190,15 @@ sqlLockAndPrepare(sql * db,		/* Database handle. */
 		      sql_stmt ** ppStmt,	/* OUT: A pointer to the prepared statement */
 		      const char **pzTail)	/* OUT: End of parsed string */
 {
-	int rc;
-
 	*ppStmt = 0;
 	assert(zSql != NULL && db != NULL);
-	rc = sqlPrepare(db, zSql, nBytes, saveSqlFlag, pOld, ppStmt,
-			    pzTail);
-	if (rc == SQL_SCHEMA) {
-		sql_finalize(*ppStmt);
-		rc = sqlPrepare(db, zSql, nBytes, saveSqlFlag, pOld, ppStmt,
-				    pzTail);
-	}
-	assert(rc == 0 || *ppStmt == 0);
-	return rc;
-}
-
-/*
- * Rerun the compilation of a statement after a schema change.
- */
-int
-sqlReprepare(Vdbe * p)
-{
-	int rc;
-	sql_stmt *pNew;
-	const char *zSql;
-	sql *db;
-
-	zSql = sql_sql((sql_stmt *) p);
-	assert(zSql != 0);	/* Reprepare only called for prepare_v2() statements */
-	db = sqlVdbeDb(p);
-	rc = sqlLockAndPrepare(db, zSql, -1, 0, p, &pNew, 0);
-	if (rc) {
-		if (rc == SQL_NOMEM) {
-			sqlOomFault(db);
-		}
-		assert(pNew == 0);
-		return rc;
-	} else {
-		assert(pNew != 0);
-	}
-	sqlVdbeSwap((Vdbe *) pNew, p);
-	sqlTransferBindings(pNew, (sql_stmt *) p);
-	sqlVdbeResetStepResult((Vdbe *) pNew);
-	sqlVdbeFinalize((Vdbe *) pNew);
-	return 0;
+	return sqlPrepare(db, zSql, nBytes, saveSqlFlag, pOld, ppStmt, pzTail);
 }
 
 /*
  * Two versions of the official API.  Legacy and new use.  In the legacy
  * version, the original SQL text is not saved in the prepared statement
- * and so if a schema change occurs, SQL_SCHEMA is returned by
+ * and so if a schema change occurs, error is returned by
  * sql_step().  In the new version, the original SQL text is retained
  * and the statement is automatically recompiled if an schema change
  * occurs.

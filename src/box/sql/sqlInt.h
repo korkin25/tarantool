@@ -364,8 +364,6 @@ enum sql_ret_code {
 	SQL_NOMEM,
 	/** Some kind of disk I/O error occurred. */
 	SQL_IOERR,
-	/** The database schema changed. */
-	SQL_SCHEMA,
 	/** String or BLOB exceeds size limit. */
 	SQL_TOOBIG,
 	/** Abort due to constraint violation. */
@@ -4687,7 +4685,6 @@ void sqlInvalidFunction(sql_context *, int, sql_value **);
 sql_int64 sqlStmtCurrentTime(sql_context *);
 int sqlVdbeParameterIndex(Vdbe *, const char *, int);
 int sqlTransferBindings(sql_stmt *, sql_stmt *);
-int sqlReprepare(Vdbe *);
 
 /**
  * This function verifies that two collations (to be more precise
