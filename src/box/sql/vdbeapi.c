@@ -965,11 +965,7 @@ sql_column_origin_name(sql_stmt * pStmt, int N)
  */
 /*
  * Unbind the value bound to variable i in virtual machine p. This is the
- * the same as binding a NULL value to the column. If the "i" parameter is
- * out of range, then SQL_RANGE is returned. Othewise 0.
- *
- * The error code stored in database p->db is overwritten with the return
- * value in any case.
+ * the same as binding a NULL value to the column.
  */
 static int
 vdbeUnbind(Vdbe * p, int i)
@@ -977,9 +973,7 @@ vdbeUnbind(Vdbe * p, int i)
 	Mem *pVar;
 	assert(p != NULL);
 	assert(p->magic == VDBE_MAGIC_RUN && p->pc < 0);
-	if (i < 1 || i > p->nVar) {
-		return SQL_RANGE;
-	}
+	assert(i > 0 && i <= p->nVar);
 	i--;
 	pVar = &p->aVar[i];
 	sqlVdbeMemRelease(pVar);
