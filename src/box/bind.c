@@ -207,16 +207,7 @@ sql_bind_column(struct sql_stmt *stmt, const struct sql_bind *p,
 	}
 	if (rc == 0)
 		return 0;
-
-	switch (rc) {
-	case SQL_NOMEM:
-		diag_set(OutOfMemory, p->bytes, "vdbe", "bind value");
-		break;
-	case SQL_TOOBIG:
-	default:
-		diag_set(ClientError, ER_SQL_BIND_VALUE, sql_bind_name(p),
-			 mp_type_strs[p->type]);
-		break;
-	}
+	diag_set(ClientError, ER_SQL_BIND_VALUE, sql_bind_name(p),
+		 mp_type_strs[p->type]);
 	return -1;
 }
