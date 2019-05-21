@@ -427,33 +427,8 @@ sqlStep(Vdbe * p)
 	int rc;
 
 	assert(p);
-	if (p->magic != VDBE_MAGIC_RUN) {
-		/* We used to require that sql_reset() be called before retrying
-		 * sql_step() after any error or after SQL_DONE.  But beginning
-		 * with version 3.7.0, we changed this so that sql_reset() would
-		 * be called automatically instead of throwing the SQL_MISUSE error.
-		 * This "automatic-reset" change is not technically an incompatibility,
-		 * since any application that receives an SQL_MISUSE is broken by
-		 * definition.
-		 *
-		 * Nevertheless, some published applications that were originally written
-		 * for version 3.6.23 or earlier do in fact depend on SQL_MISUSE
-		 * returns, and those were broken by the automatic-reset change.  As a
-		 * a work-around, the SQL_OMIT_AUTORESET compile-time restores the
-		 * legacy behavior of returning SQL_MISUSE for cases where the
-		 * previous sql_step() returned something other than a SQL_LOCKED
-		 * or SQL_BUSY error.
-		 */
-#ifdef SQL_OMIT_AUTORESET
-		if ((rc = p->rc & 0xff) == SQL_BUSY || rc == SQL_LOCKED) {
-			sql_reset((sql_stmt *) p);
-		} else {
-			return SQL_MISUSE;
-		}
-#else
+	if (p->magic != VDBE_MAGIC_RUN)
 		sql_reset((sql_stmt *) p);
-#endif
-	}
 
 	/* Check that malloc() has not failed. If it has, return early. */
 	db = p->db;
