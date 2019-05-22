@@ -363,7 +363,6 @@ enum sql_ret_code {
 	/** Some kind of disk I/O error occurred. */
 	SQL_IOERR,
 	/** Abort due to constraint violation. */
-	SQL_CONSTRAINT,
 	SQL_TARANTOOL_ERROR,
 	/** sql_step() has another row ready. */
 	SQL_ROW,
@@ -593,13 +592,6 @@ sql_exec(sql *,	/* An open database */
 #define SQL_IOERR_GETTEMPPATH       (SQL_IOERR | (25<<8))
 #define SQL_IOERR_CONVPATH          (SQL_IOERR | (26<<8))
 #define SQL_IOERR_VNODE             (SQL_IOERR | (27<<8))
-#define SQL_CONSTRAINT_CHECK        (SQL_CONSTRAINT | (1<<8))
-#define SQL_CONSTRAINT_FOREIGNKEY   (SQL_CONSTRAINT | (3<<8))
-#define SQL_CONSTRAINT_FUNCTION     (SQL_CONSTRAINT | (4<<8))
-#define SQL_CONSTRAINT_NOTNULL      (SQL_CONSTRAINT | (5<<8))
-#define SQL_CONSTRAINT_PRIMARYKEY   (SQL_CONSTRAINT | (6<<8))
-#define SQL_CONSTRAINT_TRIGGER      (SQL_CONSTRAINT | (7<<8))
-#define SQL_CONSTRAINT_UNIQUE       (SQL_CONSTRAINT | (8<<8))
 
 /**
  * Subtype of a main type. Allows to do some subtype specific
