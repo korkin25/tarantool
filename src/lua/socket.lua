@@ -1031,7 +1031,8 @@ local function tcp_connect(host, port, timeout)
     local dns = getaddrinfo(host, port, timeout, { type = 'SOCK_STREAM',
         protocol = 'tcp' })
     if dns == nil or #dns == 0 then
-        boxerrno(boxerrno.EINVAL)
+        log.info('getaddrinfo inval')
+        boxerrno(boxerrno.EADDRNOTAVAIL)
         return nil
     end
     for i, remote in pairs(dns) do
@@ -1349,7 +1350,7 @@ local function lsocket_tcp_connect(self, host, port)
     local timeout = deadline - fiber.clock()
     local dns = getaddrinfo(host, port, timeout, ga_opts)
     if dns == nil or #dns == 0 then
-        self._errno = boxerrno.EINVAL
+        self._errno = boxerrno.EADDRNOTAVAIL
         return nil, socket_error(self)
     end
     for _, remote in ipairs(dns) do

@@ -445,8 +445,8 @@ lbox_socket_local_resolve(const char *host, const char *port,
 		*socklen = sizeof(*inaddr6);
 		return 0;
 	}
-
-	errno = EINVAL;
+	say_info("lbox_socket_local_resolve inval");
+	errno = EADDRNOTAVAIL;
 	return -1;
 }
 
@@ -815,6 +815,7 @@ lbox_socket_getaddrinfo(struct lua_State *L)
 	lua_pop(L, 2);	/* host, port */
 
 	if (dns_res != 0) {
+		diag_log();
 		lua_pushnil(L);
 		return 1;
 	}
