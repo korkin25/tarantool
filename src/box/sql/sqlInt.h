@@ -2998,7 +2998,7 @@ void *sqlDbReallocOrFree(sql *, void *, u64);
 void *sqlDbRealloc(sql *, void *, u64);
 void sqlDbFree(sql *, void *);
 int sqlMallocSize(void *);
-int sqlDbMallocSize(sql *, void *);
+int sqlDbMallocSize(void *);
 void *sqlScratchMalloc(int);
 void sqlScratchFree(void *);
 void *sqlPageMalloc(int);
@@ -4900,48 +4900,6 @@ void sqlVdbeIOTraceSql(Vdbe *);
 #define IOTRACE(A)
 #define sqlVdbeIOTraceSql(X)
 #endif
-
-/*
- * These routines are available for the mem2.c debugging memory allocator
- * only.  They are used to verify that different "types" of memory
- * allocations are properly tracked by the system.
- *
- * sqlMemdebugSetType() sets the "type" of an allocation to one of
- * the MEMTYPE_* macros defined below.  The type must be a bitmask with
- * a single bit set.
- *
- * sqlMemdebugHasType() returns true if any of the bits in its second
- * argument match the type set by the previous sqlMemdebugSetType().
- * sqlMemdebugHasType() is intended for use inside assert() statements.
- *
- * sqlMemdebugNoType() returns true if none of the bits in its second
- * argument match the type set by the previous sqlMemdebugSetType().
- *
- * Perhaps the most important point is the difference between MEMTYPE_HEAP
- * and MEMTYPE_LOOKASIDE.  If an allocation is MEMTYPE_LOOKASIDE, that means
- * it might have been allocated by lookaside, except the allocation was
- * too large or lookaside was already full.  It is important to verify
- * that allocations that might have been satisfied by lookaside are not
- * passed back to non-lookaside free() routines.  Asserts such as the
- * example above are placed on the non-lookaside free() routines to verify
- * this constraint.
- *
- * All of this is no-op for a production build.  It only comes into
- * play when the sql_MEMDEBUG compile-time option is used.
- */
-#ifdef SQL_MEMDEBUG
-void sqlMemdebugSetType(void *, u8);
-int sqlMemdebugHasType(void *, u8);
-int sqlMemdebugNoType(void *, u8);
-#else
-#define sqlMemdebugSetType(X,Y)	/* no-op */
-#define sqlMemdebugHasType(X,Y)  1
-#define sqlMemdebugNoType(X,Y)   1
-#endif
-#define MEMTYPE_HEAP       0x01	/* General heap allocations */
-#define MEMTYPE_LOOKASIDE  0x02	/* Heap that might have been lookaside */
-#define MEMTYPE_SCRATCH    0x04	/* Scratch allocations */
-#define MEMTYPE_PCACHE     0x08	/* Page cache allocations */
 
 /*
  * Threading interface

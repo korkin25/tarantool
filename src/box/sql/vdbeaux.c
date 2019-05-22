@@ -192,7 +192,7 @@ growOpArray(Vdbe * v, int nOp)
 	assert(nNew >= (p->nOpAlloc + nOp));
 	pNew = sqlDbRealloc(p->db, v->aOp, nNew * sizeof(Op));
 	if (pNew) {
-		p->szOpAlloc = sqlDbMallocSize(p->db, pNew);
+		p->szOpAlloc = sqlDbMallocSize(pNew);
 		p->nOpAlloc = p->szOpAlloc / sizeof(Op);
 		v->aOp = pNew;
 	}
