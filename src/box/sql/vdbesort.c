@@ -1027,7 +1027,7 @@ vdbeSorterJoinThread(SortSubtask * pTask)
 #ifdef SQL_DEBUG_SORTER_THREADS
 		int bDone = pTask->bDone;
 #endif
-		void *pRet = SQL_INT_TO_PTR(SQL_ERROR);
+		void *pRet = SQL_INT_TO_PTR(-1);
 		vdbeSorterBlockDebug(pTask, !bDone, "enter");
 		(void)sqlThreadJoin(pTask->pThread, &pRet);
 		vdbeSorterBlockDebug(pTask, !bDone, "exit");

@@ -1482,7 +1482,7 @@ unixGetTempname(int nBuf, char *zBuf)
 				 "%s/" SQL_TEMP_FILE_PREFIX "%llx%c", zDir,
 				 r, 0);
 		if (zBuf[nBuf - 2] != 0 || (iLimit++) > 10)
-			return SQL_ERROR;
+			return -1;
 	} while (access(zBuf, 0) == 0);
 	return 0;
 }
@@ -1877,8 +1877,7 @@ int sql_current_time = 0;
  * epoch of noon in Greenwich on November 24, 4714 B.C according to the
  * proleptic Gregorian calendar.
  *
- * On success, return 0.  Return SQL_ERROR if the time and date
- * cannot be found.
+ * On success, return 0.
  */
 static int
 unixCurrentTimeInt64(sql_vfs * NotUsed, sql_int64 * piNow)

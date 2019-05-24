@@ -257,7 +257,7 @@ sql_db_status(sql * db,	/* The database connection whose status is desired */
 		}
 
 	default:{
-			rc = SQL_ERROR;
+			rc = -1;
 		}
 	}
 	return rc;

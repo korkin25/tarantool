@@ -356,10 +356,8 @@ struct sql_vfs {
 #define SQL_LIMIT_WORKER_THREADS           10
 
 enum sql_ret_code {
-	/** Common error code. */
-	SQL_ERROR = 1,
 	/** A malloc() failed. */
-	SQL_NOMEM,
+	SQL_NOMEM = 2,
 	/** Some kind of disk I/O error occurred. */
 	SQL_IOERR,
 	/** Abort due to constraint violation. */

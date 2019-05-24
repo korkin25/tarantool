@@ -545,7 +545,7 @@ sqlVdbeMemIntegerify(Mem * pMem, bool is_forced)
 
 	double d;
 	if (sqlVdbeRealValue(pMem, &d) || (int64_t) d != d) {
-		return SQL_ERROR;
+		return -1;
 	}
 	pMem->u.i = (int64_t) d;
 	MemSetTypeFlag(pMem, MEM_Int);
@@ -562,7 +562,7 @@ sqlVdbeMemRealify(Mem * pMem)
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 	double v;
 	if (sqlVdbeRealValue(pMem, &v))
-		return SQL_ERROR;
+		return -1;
 
 	pMem->u.r = v;
 	MemSetTypeFlag(pMem, MEM_Real);
@@ -587,7 +587,7 @@ sqlVdbeMemNumerify(Mem * pMem)
 		} else {
 			double v;
 			if (sqlVdbeRealValue(pMem, &v))
-				return SQL_ERROR;
+				return -1;
 			pMem->u.r = v;
 			MemSetTypeFlag(pMem, MEM_Real);
 			mem_apply_integer_type(pMem);
