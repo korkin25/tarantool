@@ -983,7 +983,7 @@ sqlVdbeMemSetStr(Mem * pMem,	/* Memory cell to set to string value */
 		if (nByte > iLimit) {
 			diag_set(ClientError, ER_SQL_EXECUTE, "string or blob "\
 				 "is too big");
-			return SQL_TARANTOOL_ERROR;
+			return -1;
 		}
 		testcase(nAlloc == 0);
 		testcase(nAlloc == 31);
@@ -1009,7 +1009,7 @@ sqlVdbeMemSetStr(Mem * pMem,	/* Memory cell to set to string value */
 	if (nByte > iLimit) {
 		diag_set(ClientError, ER_SQL_EXECUTE, "string or blob is too "\
 			 "big");
-		return SQL_TARANTOOL_ERROR;
+		return -1;
 	}
 
 	return 0;

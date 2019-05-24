@@ -902,7 +902,7 @@ vdbe_emit_constraint_checks(struct Parse *parse_context, struct space *space,
 		case ON_CONFLICT_ACTION_FAIL:
 			err = tt_sprintf("NOT NULL constraint failed: %s.%s",
 					 def->name, def->fields[i].name);
-			sqlVdbeAddOp4(v, OP_HaltIfNull, SQL_TARANTOOL_ERROR,
+			sqlVdbeAddOp4(v, OP_HaltIfNull, -1,
 				      on_conflict_nullable, new_tuple_reg + i,
 				      err, P4_STATIC);
 			sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
@@ -951,7 +951,7 @@ vdbe_emit_constraint_checks(struct Parse *parse_context, struct space *space,
 				const char *err =
 					tt_sprintf("CHECK constraint failed: "\
 						   "%s", name);
-				sqlVdbeAddOp4(v, OP_Halt, SQL_TARANTOOL_ERROR,
+				sqlVdbeAddOp4(v, OP_Halt, -1,
 					      on_conflict_check, 0, err,
 					      P4_STATIC);
 				sqlVdbeChangeP5(v, ER_SQL_EXECUTE);

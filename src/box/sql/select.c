@@ -2110,11 +2110,8 @@ computeLimitRegisters(Parse * pParse, Select * p, int iBreak)
 			"Only positive integers are allowed "
 			"in the LIMIT clause";
 		sqlVdbeResolveLabel(v, halt_label);
-		sqlVdbeAddOp4(v, OP_Halt,
-				  SQL_TARANTOOL_ERROR,
-				  0, 0,
-				  wrong_limit_error,
-				  P4_STATIC);
+		sqlVdbeAddOp4(v, OP_Halt, -1, 0, 0, wrong_limit_error,
+			      P4_STATIC);
 		sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
 
 		sqlVdbeResolveLabel(v, positive_limit_label);
@@ -2144,9 +2141,8 @@ computeLimitRegisters(Parse * pParse, Select * p, int iBreak)
 				sqlVdbeAddOp3(v, OP_Eq, iLimit, no_err, r1);
 				const char *error = "Expression subquery could "
 						    "be limited only with 1";
-				sqlVdbeAddOp4(v, OP_Halt,
-						  SQL_TARANTOOL_ERROR,
-						  0, 0, error, P4_STATIC);
+				sqlVdbeAddOp4(v, OP_Halt, -1, 0, 0, error,
+					      P4_STATIC);
 				sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
 				sqlVdbeResolveLabel(v, no_err);
 				sqlReleaseTempReg(pParse, r1);
@@ -2172,11 +2168,8 @@ computeLimitRegisters(Parse * pParse, Select * p, int iBreak)
 				"Only positive integers are allowed "
 				"in the OFFSET clause";
 			sqlVdbeResolveLabel(v, offset_error_label);
-			sqlVdbeAddOp4(v, OP_Halt,
-					  SQL_TARANTOOL_ERROR,
-					  0, 0,
-					  wrong_offset_error,
-					  P4_STATIC);
+			sqlVdbeAddOp4(v, OP_Halt, -1, 0, 0, wrong_offset_error,
+				      P4_STATIC);
 			sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
 
 			sqlVdbeResolveLabel(v, positive_offset_label);
@@ -5447,7 +5440,7 @@ vdbe_code_raise_on_multiple_rows(struct Parse *parser, int limit_reg, int end_ma
 	sqlVdbeAddOp2(v, OP_Integer, 0, r1);
 	sqlVdbeAddOp3(v, OP_Ne, r1, end_mark, limit_reg);
 	const char *error = "Expression subquery returned more than 1 row";
-	sqlVdbeAddOp4(v, OP_Halt, SQL_TARANTOOL_ERROR, 0, 0, error, P4_STATIC);
+	sqlVdbeAddOp4(v, OP_Halt, -1, 0, 0, error, P4_STATIC);
 	sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
 	sqlReleaseTempReg(parser, r1);
 }

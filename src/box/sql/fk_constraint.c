@@ -287,7 +287,7 @@ fk_constraint_lookup_parent(struct Parse *parse_context, struct space *parent,
 		 * transaction.
 		 */
 		assert(incr_count == 1);
-		sqlVdbeAddOp4(v, OP_Halt, SQL_TARANTOOL_ERROR, 0, 0, "FOREIGN "\
+		sqlVdbeAddOp4(v, OP_Halt, -1, 0, 0, "FOREIGN "\
 			      "KEY constraint failed", P4_STATIC);
 		sqlVdbeChangeP5(v, ER_SQL_EXECUTE);
 	} else {

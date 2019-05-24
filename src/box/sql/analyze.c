@@ -1691,7 +1691,7 @@ sql_analysis_load(struct sql *db)
 	assert(stat_space != NULL);
 	ssize_t index_count = box_index_len(stat_space->def->id, 0);
 	if (index_count < 0)
-		return SQL_TARANTOOL_ERROR;
+		return -1;
 	if (box_txn_begin() != 0)
 		goto fail;
 	size_t stats_size = index_count * sizeof(struct index_stat);
@@ -1771,9 +1771,9 @@ sql_analysis_load(struct sql *db)
 	if (load_stat_to_index(db, order_query, heap_stats) != 0)
 		goto fail;
 	if (box_txn_commit() != 0)
-		return SQL_TARANTOOL_ERROR;
+		return -1;
 	return 0;
 fail:
 	box_txn_rollback();
-	return SQL_TARANTOOL_ERROR;
+	return -1;
 }

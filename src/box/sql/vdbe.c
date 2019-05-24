@@ -921,15 +921,8 @@ case OP_HaltIfNull: {      /* in3 */
  *
  * If P4 is not null then it is an error message string.
  *
- * If P1 is SQL_TARANTOOL_ERROR then P5 is a ClientError code and
- * P4 is error message to set. Else P5 is a value between 0 and 4,
- * inclusive, that modifies the P4 string.
- *
- *    0:  (no change)
- *    1:  NOT NULL contraint failed: P4
- *    2:  UNIQUE constraint failed: P4
- *    3:  CHECK constraint failed: P4
- *    4:  FOREIGN KEY constraint failed: P4
+ * If P1 is -1 then P5 is a ClientError code and
+ * P4 is error message to set.
  *
  * If P5 is not zero and  P4 is  NULL, then everything after the
  * ":" is omitted.
@@ -969,14 +962,12 @@ case OP_Halt: {
 	p->errorAction = (u8)pOp->p2;
 	p->pc = pcx;
 	if (p->rc) {
-		assert(p->rc == SQL_TARANTOOL_ERROR);
 		if (pOp->p4.z != NULL)
 			diag_set(ClientError, pOp->p5, pOp->p4.z);
 		assert(! diag_is_empty(diag_get()));
 	}
-	rc = sqlVdbeHalt(p);
-	assert(rc == 0 || rc == -1);
-	rc = p->rc ? SQL_TARANTOOL_ERROR : SQL_DONE;
+	sqlVdbeHalt(p);
+	rc = p->rc ? -1 : SQL_DONE;
 	goto vdbe_return;
 }
 
@@ -3621,7 +3612,6 @@ case OP_Found: {        /* jump, in3 */
 	rc = sqlCursorMovetoUnpacked(pC->uc.pCursor, pIdxKey, &res);
 	if (pFree)
 		sqlDbFree(db, pFree);
-	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
 	if (rc != 0)
 		goto abort_due_to_error;
 	pC->seekResult = res;
@@ -3839,8 +3829,7 @@ case OP_SorterCompare: {
 			pIn3 = &aMem[pOp->p3];
 			nKeyCol = pOp->p4.i;
 			res = 0;
-			if (sqlVdbeSorterCompare(pC, pIn3, nKeyCol, &res) != 0)
-				rc = SQL_TARANTOOL_ERROR;
+			rc = sqlVdbeSorterCompare(pC, pIn3, nKeyCol, &res);
 			VdbeBranchTaken(res!=0,2);
 			if (rc) goto abort_due_to_error;
 			if (res) goto jump_to_p2;
@@ -4078,8 +4067,7 @@ case OP_Rewind: {        /* jump */
 		assert(pC->eCurType==CURTYPE_TARANTOOL);
 		pCrsr = pC->uc.pCursor;
 		assert(pCrsr);
-		if (tarantoolsqlFirst(pCrsr, &res) != 0)
-			rc = SQL_TARANTOOL_ERROR;
+		rc = tarantoolsqlFirst(pCrsr, &res);
 		pC->cacheStatus = CACHE_STALE;
 		if (rc != 0)
 			goto abort_due_to_error;
@@ -4294,7 +4282,6 @@ case OP_IdxInsert: {
 	} else if (pOp->p5 & OPFLAG_OE_ROLLBACK) {
 		p->errorAction = ON_CONFLICT_ACTION_ROLLBACK;
 	}
-	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
 	if (rc != 0)
 		goto abort_due_to_error;
 	break;
@@ -4372,9 +4359,8 @@ case OP_Update: {
 	}
 
 	assert(rc == 0);
-	if (box_update(space->def->id, 0, key_mem->z, key_mem->z + key_mem->n,
-		       ops, ops + ops_size, 0, NULL) != 0)
-		rc = SQL_TARANTOOL_ERROR;
+	rc = box_update(space->def->id, 0, key_mem->z, key_mem->z + key_mem->n,
+			ops, ops + ops_size, 0, NULL);
 
 	if (pOp->p5 & OPFLAG_OE_IGNORE) {
 		/*
@@ -4393,7 +4379,6 @@ case OP_Update: {
 	} else if (pOp->p5 & OPFLAG_OE_ROLLBACK) {
 		p->errorAction = ON_CONFLICT_ACTION_ROLLBACK;
 	}
-	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR);
 	if (rc != 0)
 		goto abort_due_to_error;
 	break;
@@ -5183,7 +5168,7 @@ case OP_Init: {          /* jump */
 	 */
 	if (p->pFrame == NULL && sql_vdbe_prepare(p) != 0) {
 		sqlDbFree(db, p);
-		rc = SQL_TARANTOOL_ERROR;
+		rc = -1;
 		break;
 	}
 
@@ -5290,7 +5275,7 @@ default: {          /* This is really OP_Noop and OP_Explain */
 	 * an error of some kind.
 	 */
 abort_due_to_error:
-	rc = SQL_TARANTOOL_ERROR;
+	rc = -1;
 	p->rc = rc;
 
 	/* This is the only way out of this procedure. */
@@ -5300,8 +5285,7 @@ vdbe_return:
 	assert(rc!=0 || nExtraDelete==0
 		|| sql_strlike_ci("DELETE%", p->zSql, 0) != 0
 		);
-	assert(rc == 0 || rc == SQL_TARANTOOL_ERROR ||
-	       rc == SQL_ROW || rc == SQL_DONE);
+	assert(rc == 0 || rc == -1 || rc == SQL_ROW || rc == SQL_DONE);
 	return rc;
 
 	/* Jump to here if a string or blob larger than SQL_MAX_LENGTH
