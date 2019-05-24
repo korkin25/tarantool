@@ -167,6 +167,5 @@ sql_exec(sql * db,	/* The database on which the SQL executes */
 	sqlDbFree(db, azCols);
 
 	assert(rc == 0);
-	assert((rc & db->errMask) == rc);
 	return rc;
 }

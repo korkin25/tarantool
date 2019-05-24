@@ -809,5 +809,5 @@ sqlApiExit(sql * db, int rc)
 	if (db->mallocFailed) {
 		return apiOomError(db);
 	}
-	return rc & db->errMask;
+	return rc;
 }

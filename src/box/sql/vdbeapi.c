@@ -116,7 +116,6 @@ sql_reset(sql_stmt * pStmt)
 		checkProfileCallback(db, v);
 		rc = sqlVdbeReset(v);
 		sqlVdbeRewind(v);
-		assert((rc & (db->errMask)) == rc);
 		rc = sqlApiExit(db, rc);
 	}
 	return rc;
@@ -475,7 +474,7 @@ sqlStep(Vdbe * p)
 		 */
 		rc = p->rc;
 	}
-	return (rc & db->errMask);
+	return rc;
 }
 
 /*
