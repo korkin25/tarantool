@@ -356,10 +356,8 @@ struct sql_vfs {
 #define SQL_LIMIT_WORKER_THREADS           10
 
 enum sql_ret_code {
-	/** Some kind of disk I/O error occurred. */
-	SQL_IOERR = 3,
 	/** Abort due to constraint violation. */
-	SQL_TARANTOOL_ERROR,
+	SQL_TARANTOOL_ERROR = 4,
 	/** sql_step() has another row ready. */
 	SQL_ROW,
 	/** sql_step() has finished executing. */
@@ -561,33 +559,6 @@ sql_exec(sql *,	/* An open database */
 	     void *,	/* 1st argument to callback */
 	     char **errmsg	/* Error msg written here */
 	);
-#define SQL_IOERR_READ              (SQL_IOERR | (1<<8))
-#define SQL_IOERR_SHORT_READ        (SQL_IOERR | (2<<8))
-#define SQL_IOERR_WRITE             (SQL_IOERR | (3<<8))
-#define SQL_IOERR_FSYNC             (SQL_IOERR | (4<<8))
-#define SQL_IOERR_DIR_FSYNC         (SQL_IOERR | (5<<8))
-#define SQL_IOERR_TRUNCATE          (SQL_IOERR | (6<<8))
-#define SQL_IOERR_FSTAT             (SQL_IOERR | (7<<8))
-#define SQL_IOERR_UNLOCK            (SQL_IOERR | (8<<8))
-#define SQL_IOERR_RDLOCK            (SQL_IOERR | (9<<8))
-#define SQL_IOERR_DELETE            (SQL_IOERR | (10<<8))
-#define SQL_IOERR_BLOCKED           (SQL_IOERR | (11<<8))
-#define SQL_IOERR_NOMEM             (SQL_IOERR | (12<<8))
-#define SQL_IOERR_ACCESS            (SQL_IOERR | (13<<8))
-#define SQL_IOERR_CHECKRESERVEDLOCK (SQL_IOERR | (14<<8))
-#define SQL_IOERR_LOCK              (SQL_IOERR | (15<<8))
-#define SQL_IOERR_CLOSE             (SQL_IOERR | (16<<8))
-#define SQL_IOERR_DIR_CLOSE         (SQL_IOERR | (17<<8))
-#define SQL_IOERR_SHMOPEN           (SQL_IOERR | (18<<8))
-#define SQL_IOERR_SHMSIZE           (SQL_IOERR | (19<<8))
-#define SQL_IOERR_SHMLOCK           (SQL_IOERR | (20<<8))
-#define SQL_IOERR_SHMMAP            (SQL_IOERR | (21<<8))
-#define SQL_IOERR_SEEK              (SQL_IOERR | (22<<8))
-#define SQL_IOERR_DELETE_NOENT      (SQL_IOERR | (23<<8))
-#define SQL_IOERR_MMAP              (SQL_IOERR | (24<<8))
-#define SQL_IOERR_GETTEMPPATH       (SQL_IOERR | (25<<8))
-#define SQL_IOERR_CONVPATH          (SQL_IOERR | (26<<8))
-#define SQL_IOERR_VNODE             (SQL_IOERR | (27<<8))
 
 /**
  * Subtype of a main type. Allows to do some subtype specific
