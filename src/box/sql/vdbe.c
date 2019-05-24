@@ -632,8 +632,7 @@ int sqlVdbeExec(Vdbe *p)
 	/*** INSERT STACK UNION HERE ***/
 
 	assert(p->magic==VDBE_MAGIC_RUN);  /* sql_step() verifies this */
-	assert(p->rc == 0);
-	p->rc = 0;
+	assert(!p->is_aborted);
 	p->iCurrentTime = 0;
 	assert(p->explain==0);
 	p->pResultSet = 0;
@@ -958,16 +957,17 @@ case OP_Halt: {
 		pOp = &aOp[pcx];
 		break;
 	}
-	p->rc = pOp->p1;
+	if (pOp->p1 != 0)
+		p->is_aborted = true;
 	p->errorAction = (u8)pOp->p2;
 	p->pc = pcx;
-	if (p->rc) {
+	if (p->is_aborted) {
 		if (pOp->p4.z != NULL)
 			diag_set(ClientError, pOp->p5, pOp->p4.z);
 		assert(! diag_is_empty(diag_get()));
 	}
 	sqlVdbeHalt(p);
-	rc = p->rc ? -1 : SQL_DONE;
+	rc = p->is_aborted ? -1 : SQL_DONE;
 	goto vdbe_return;
 }
 
@@ -2883,7 +2883,7 @@ case OP_Savepoint: {
 					goto vdbe_return;
 				}
 				sqlVdbeHalt(p);
-				if (p->rc != 0)
+				if (p->is_aborted)
 					goto abort_due_to_error;
 			} else {
 				if (p1==SAVEPOINT_ROLLBACK)
@@ -5276,7 +5276,7 @@ default: {          /* This is really OP_Noop and OP_Explain */
 	 */
 abort_due_to_error:
 	rc = -1;
-	p->rc = rc;
+	p->is_aborted = true;
 
 	/* This is the only way out of this procedure. */
 vdbe_return:

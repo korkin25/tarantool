@@ -253,7 +253,6 @@ void sqlVdbeMakeReady(Vdbe *, Parse *);
 int sqlVdbeFinalize(Vdbe *);
 void sqlVdbeResolveLabel(Vdbe *, int);
 int sqlVdbeCurrentAddr(Vdbe *);
-void sqlVdbeResetStepResult(Vdbe *);
 void sqlVdbeRewind(Vdbe *);
 int sqlVdbeReset(Vdbe *);
 void sqlVdbeSetNumCols(Vdbe *, int);
