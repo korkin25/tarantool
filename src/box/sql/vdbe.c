@@ -632,12 +632,6 @@ int sqlVdbeExec(Vdbe *p)
 	/*** INSERT STACK UNION HERE ***/
 
 	assert(p->magic==VDBE_MAGIC_RUN);  /* sql_step() verifies this */
-	if (p->rc==SQL_NOMEM) {
-		/* This happens if a malloc() inside a call to sql_column_text() or
-		 * sql_column_text16() failed.
-		 */
-		goto no_mem;
-	}
 	assert(p->rc == 0);
 	p->rc = 0;
 	p->iCurrentTime = 0;

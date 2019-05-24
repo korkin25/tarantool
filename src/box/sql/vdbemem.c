@@ -129,7 +129,7 @@ sqlVdbeMemGrow(Mem * pMem, int n, int bPreserve)
 			sqlVdbeMemSetNull(pMem);
 			pMem->z = 0;
 			pMem->szMalloc = 0;
-			return SQL_NOMEM;
+			return -1;
 		} else {
 			pMem->szMalloc =
 			    sqlDbMallocSize(pMem->zMalloc);
@@ -159,8 +159,7 @@ sqlVdbeMemGrow(Mem * pMem, int n, int bPreserve)
  * and MEM_Blob values may be discarded, MEM_Int, MEM_Real, and MEM_Null
  * values are preserved.
  *
- * Return 0 on success or an error code (probably SQL_NOMEM)
- * if unable to complete the resizing.
+ * Return 0 on success or -1 if unable to complete the resizing.
  */
 int
 sqlVdbeMemClearAndResize(Mem * pMem, int szNew)
@@ -180,17 +179,17 @@ sqlVdbeMemClearAndResize(Mem * pMem, int szNew)
  * Change pMem so that its MEM_Str or MEM_Blob value is stored in
  * MEM.zMalloc, where it can be safely written.
  *
- * Return 0 on success or SQL_NOMEM if malloc fails.
+ * Return 0 on success or -1 if malloc fails.
  */
 int
 sqlVdbeMemMakeWriteable(Mem * pMem)
 {
 	if ((pMem->flags & (MEM_Str | MEM_Blob)) != 0) {
 		if (ExpandBlob(pMem))
-			return SQL_NOMEM;
+			return -1;
 		if (pMem->szMalloc == 0 || pMem->z != pMem->zMalloc) {
 			if (sqlVdbeMemGrow(pMem, pMem->n + 2, 1)) {
-				return SQL_NOMEM;
+				return -1;
 			}
 			pMem->z[pMem->n] = 0;
 			pMem->z[pMem->n + 1] = 0;
@@ -223,7 +222,7 @@ sqlVdbeMemExpandBlob(Mem * pMem)
 		nByte = 1;
 	}
 	if (sqlVdbeMemGrow(pMem, nByte, 1)) {
-		return SQL_NOMEM;
+		return -1;
 	}
 
 	memset(&pMem->z[pMem->n], 0, pMem->u.nZero);
@@ -241,7 +240,7 @@ static SQL_NOINLINE int
 vdbeMemAddTerminator(Mem * pMem)
 {
 	if (sqlVdbeMemGrow(pMem, pMem->n + 2, 1)) {
-		return SQL_NOMEM;
+		return -1;
 	}
 	pMem->z[pMem->n] = 0;
 	pMem->z[pMem->n + 1] = 0;
@@ -292,7 +291,7 @@ sqlVdbeMemStringify(Mem * pMem, u8 bForce)
 	assert(EIGHT_BYTE_ALIGNMENT(pMem));
 
 	if (sqlVdbeMemClearAndResize(pMem, nByte)) {
-		return SQL_NOMEM;
+		return -1;
 	}
 	if (fg & MEM_Int) {
 		sql_snprintf(nByte, pMem->z, "%lld", pMem->u.i);
@@ -990,7 +989,7 @@ sqlVdbeMemSetStr(Mem * pMem,	/* Memory cell to set to string value */
 		testcase(nAlloc == 31);
 		testcase(nAlloc == 32);
 		if (sqlVdbeMemClearAndResize(pMem, MAX(nAlloc, 32))) {
-			return SQL_NOMEM;
+			return -1;
 		}
 		memcpy(pMem->z, z, nAlloc);
 	} else if (xDel == SQL_DYNAMIC) {
@@ -1261,7 +1260,7 @@ valueFromFunction(sql * db,	/* The database connection */
 							   sizeof(apVal[0]) *
 							   nVal);
 		if (apVal == 0) {
-			rc = SQL_NOMEM;
+			rc = -1;
 			goto value_from_function_out;
 		}
 		for (i = 0; i < nVal; i++) {
@@ -1274,7 +1273,7 @@ valueFromFunction(sql * db,	/* The database connection */
 
 	pVal = valueNew(db, pCtx);
 	if (pVal == 0) {
-		rc = SQL_NOMEM;
+		rc = -1;
 		goto value_from_function_out;
 	}
 
@@ -1438,7 +1437,7 @@ valueFromExpr(sql * db,	/* The database connection */
 	if (pCtx == 0)
 		sqlValueFree(pVal);
 
-	return SQL_NOMEM;
+	return -1;
 }
 
 /*

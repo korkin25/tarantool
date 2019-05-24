@@ -570,7 +570,7 @@ vdbePmaReadBlob(PmaReader * p,	/* PmaReader from which to take the blob */
 				nNew = nNew * 2;
 			aNew = sqlRealloc(p->aAlloc, nNew);
 			if (!aNew)
-				return SQL_NOMEM;
+				return -1;
 			p->nAlloc = nNew;
 			p->aAlloc = aNew;
 		}
@@ -694,7 +694,7 @@ vdbePmaReaderSeek(SortSubtask * pTask,	/* Task context */
 		if (pReadr->aBuffer == 0) {
 			pReadr->aBuffer = (u8 *) sqlMalloc(pgsz);
 			if (pReadr->aBuffer == 0)
-				rc = SQL_NOMEM;
+				rc = -1;
 			pReadr->nBuffer = pgsz;
 		}
 		if (rc == 0 && iBuf) {
@@ -803,7 +803,7 @@ vdbePmaReaderInit(SortSubtask * pTask,	/* Task context */
  * version of key2 and *pbKey2Cached set to true before returning.
  *
  * If an OOM error is encountered, (pTask->pUnpacked->error_rc) is set
- * to SQL_NOMEM.
+ * to -1.
  *
  * @param task Subtask context (for key_def).
  * @param key2_cached True if pTask->pUnpacked is key2.
@@ -879,7 +879,7 @@ sqlVdbeSorterInit(sql * db,	/* Database connection (for malloc()) */
 	pSorter = (VdbeSorter *) sqlDbMallocZero(db, sizeof(VdbeSorter));
 	pCsr->uc.pSorter = pSorter;
 	if (pSorter == 0) {
-		rc = SQL_NOMEM;
+		rc = -1;
 	} else {
 		pSorter->key_def = pCsr->key_def;
 		pSorter->pgsz = pgsz = 1024;
@@ -913,7 +913,7 @@ sqlVdbeSorterInit(sql * db,	/* Database connection (for malloc()) */
 				pSorter->list.aMemory =
 				    (u8 *) sqlMalloc(pgsz);
 				if (!pSorter->list.aMemory)
-					rc = SQL_NOMEM;
+					rc = -1;
 			}
 		}
 
@@ -1258,7 +1258,7 @@ vdbeSorterOpenTempFile(sql * db,	/* Database handle doing sort */
 /*
  * If it has not already been allocated, allocate the UnpackedRecord
  * structure at pTask->pUnpacked. Return 0 if successful (or
- * if no allocation was required), or SQL_NOMEM otherwise.
+ * if no allocation was required), or -1 otherwise.
  */
 static int
 vdbeSortAllocUnpacked(SortSubtask * pTask)
@@ -1268,7 +1268,7 @@ vdbeSortAllocUnpacked(SortSubtask * pTask)
 			sqlVdbeAllocUnpackedRecord(pTask->pSorter->db,
 						       pTask->pSorter->key_def);
 		if (pTask->pUnpacked == 0)
-			return SQL_NOMEM;
+			return -1;
 		pTask->pUnpacked->nField = pTask->pSorter->key_def->part_count;
 		pTask->pUnpacked->errCode = 0;
 	}
@@ -1330,7 +1330,7 @@ vdbeSorterGetCompare(VdbeSorter * p)
 
 /*
  * Sort the linked list of records headed at pTask->pList. Return
- * 0 if successful, or an sql error code (i.e. SQL_NOMEM) if
+ * 0 if successful, or an sql error code (i.e. -1) if
  * an error occurs.
  */
 static int
@@ -1351,7 +1351,7 @@ vdbeSorterSort(SortSubtask * pTask, SorterList * pList)
 	aSlot =
 	    (SorterRecord **) sqlMallocZero(64 * sizeof(SorterRecord *));
 	if (!aSlot) {
-		return SQL_NOMEM;
+		return -1;
 	}
 
 	while (p) {
@@ -1388,8 +1388,6 @@ vdbeSorterSort(SortSubtask * pTask, SorterList * pList)
 	pList->pList = p;
 
 	sql_free(aSlot);
-	assert(pTask->pUnpacked->errCode == 0
-	       || pTask->pUnpacked->errCode == SQL_NOMEM);
 	return pTask->pUnpacked->errCode;
 }
 
@@ -1406,7 +1404,7 @@ vdbePmaWriterInit(sql_file * pFd,	/* File handle to write to */
 	memset(p, 0, sizeof(PmaWriter));
 	p->aBuffer = (u8 *) sqlMalloc(nBuf);
 	if (!p->aBuffer) {
-		p->eFWErr = SQL_NOMEM;
+		p->eFWErr = -1;
 	} else {
 		p->iBufEnd = p->iBufStart = (iStart % nBuf);
 		p->iWriteOff = iStart - p->iBufStart;
@@ -1727,7 +1725,7 @@ vdbeSorterFlushPMA(VdbeSorter * pSorter)
 				pSorter->list.aMemory =
 				    sqlMalloc(pSorter->nMemory);
 				if (!pSorter->list.aMemory)
-					return SQL_NOMEM;
+					return -1;
 			}
 
 			rc = vdbeSorterCreateThread(pTask,
@@ -1827,7 +1825,7 @@ sqlVdbeSorterWrite(const VdbeCursor * pCsr,	/* Sorter cursor */
 
 			aNew = sqlRealloc(pSorter->list.aMemory, nNew);
 			if (!aNew)
-				return SQL_NOMEM;
+				return -1;
 			pSorter->list.pList = (SorterRecord *) & aNew[iListOff];
 			pSorter->list.aMemory = aNew;
 			pSorter->nMemory = nNew;
@@ -1844,7 +1842,7 @@ sqlVdbeSorterWrite(const VdbeCursor * pCsr,	/* Sorter cursor */
 	} else {
 		pNew = (SorterRecord *) sqlMalloc(nReq);
 		if (pNew == 0) {
-			return SQL_NOMEM;
+			return -1;
 		}
 		pNew->u.pNext = pSorter->list.pList;
 	}
@@ -2007,7 +2005,7 @@ vdbeIncrMergerNew(SortSubtask * pTask,	/* The thread that will be using the new 
 		pTask->file2.iEof += pIncr->mxSz;
 	} else {
 		vdbeMergeEngineFree(pMerger);
-		rc = SQL_NOMEM;
+		rc = -1;
 	}
 	return rc;
 }
@@ -2332,7 +2330,7 @@ vdbeMergeEngineLevel0(SortSubtask * pTask,	/* Sorter task to read from */
 
 	*ppOut = pNew = vdbeMergeEngineNew(nPMA);
 	if (pNew == 0)
-		rc = SQL_NOMEM;
+		rc = -1;
 
 	for (i = 0; i < nPMA && rc == 0; i++) {
 		i64 nDummy = 0;
@@ -2408,7 +2406,7 @@ vdbeSorterAddToTree(SortSubtask * pTask,	/* Task context */
 			MergeEngine *pNew =
 			    vdbeMergeEngineNew(SORTER_MAX_MERGE_COUNT);
 			if (pNew == 0) {
-				rc = SQL_NOMEM;
+				rc = -1;
 			} else {
 				rc = vdbeIncrMergerNew(pTask, pNew,
 						       &pReadr->pIncr);
@@ -2457,7 +2455,7 @@ vdbeSorterMergeTreeBuild(VdbeSorter * pSorter,	/* The VDBE cursor that implement
 	if (pSorter->nTask > 1) {
 		pMain = vdbeMergeEngineNew(pSorter->nTask);
 		if (pMain == 0)
-			rc = SQL_NOMEM;
+			rc = -1;
 	}
 #endif
 
@@ -2478,7 +2476,7 @@ vdbeSorterMergeTreeBuild(VdbeSorter * pSorter,	/* The VDBE cursor that implement
 				pRoot =
 				    vdbeMergeEngineNew(SORTER_MAX_MERGE_COUNT);
 				if (pRoot == 0)
-					rc = SQL_NOMEM;
+					rc = -1;
 				for (i = 0; i < pTask->nPMA && rc == 0;
 				     i += SORTER_MAX_MERGE_COUNT) {
 					MergeEngine *pMerger = 0;	/* New level-0 PMA merger */
@@ -2569,7 +2567,7 @@ vdbeSorterSetupMerge(VdbeSorter * pSorter)
 								      (PmaReader));
 				pSorter->pReader = pReadr;
 				if (pReadr == 0)
-					rc = SQL_NOMEM;
+					rc = -1;
 			}
 			if (rc == 0) {
 				rc = vdbeIncrMergerNew(pLast, pMain,
@@ -2773,7 +2771,7 @@ sqlVdbeSorterRowkey(const VdbeCursor * pCsr, Mem * pOut)
 	pSorter = pCsr->uc.pSorter;
 	pKey = vdbeSorterRowkey(pSorter, &nKey);
 	if (sqlVdbeMemClearAndResize(pOut, nKey)) {
-		return SQL_NOMEM;
+		return -1;
 	}
 	pOut->n = nKey;
 	MemSetTypeFlag(pOut, MEM_Blob);
@@ -2790,7 +2788,7 @@ sqlVdbeSorterRowkey(const VdbeCursor * pCsr, Mem * pOut)
  * If the sorter cursor key contains any NULL values, consider it to be
  * less than pVal. Even if pVal also contains NULL values.
  *
- * If an error occurs, return an sql error code (i.e. SQL_NOMEM).
+ * If an error occurs, return -1.
  * Otherwise, set *pRes to a negative, zero or positive value if the
  * key in pVal is smaller than, equal to or larger than the current sorter
  * key.
@@ -2818,7 +2816,7 @@ sqlVdbeSorterCompare(const VdbeCursor * pCsr,	/* Sorter cursor */
 		r2 = pSorter->pUnpacked =
 			sqlVdbeAllocUnpackedRecord(pSorter->db,  pCsr->key_def);
 		if (r2 == 0)
-			return SQL_NOMEM;
+			return -1;
 		r2->nField = nKeyCol;
 	}
 	assert(r2->nField == nKeyCol);
