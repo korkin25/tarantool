@@ -31,7 +31,9 @@ int tarantoolsqlNext(BtCursor * pCur, int *pRes);
 int tarantoolsqlPrevious(BtCursor * pCur, int *pRes);
 int tarantoolsqlMovetoUnpacked(BtCursor * pCur, UnpackedRecord * pIdxKey,
 				   int *pRes);
-int tarantoolsqlCount(BtCursor * pCur, i64 * pnEntry);
+void
+tarantoolsqlCount(BtCursor * pCur, i64 * pnEntry);
+
 int tarantoolsqlInsert(struct space *space, const char *tuple,
 			   const char *tuple_end);
 int tarantoolsqlReplace(struct space *space, const char *tuple,
@@ -97,8 +99,13 @@ sql_ephemeral_space_create(uint32_t filed_count, struct sql_key_info *key_info);
 int tarantoolsqlEphemeralInsert(struct space *space, const char *tuple,
 				    const char *tuple_end);
 int tarantoolsqlEphemeralDelete(BtCursor * pCur);
-int tarantoolsqlEphemeralCount(BtCursor * pCur, i64 * pnEntry);
-int tarantoolsqlEphemeralDrop(BtCursor * pCur);
+
+void
+tarantoolsqlEphemeralCount(BtCursor * pCur, i64 * pnEntry);
+
+void
+tarantoolsqlEphemeralDrop(BtCursor * pCur);
+
 int tarantoolsqlEphemeralClearTable(BtCursor * pCur);
 
 /**

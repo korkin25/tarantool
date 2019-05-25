@@ -315,24 +315,20 @@ int tarantoolsqlMovetoUnpacked(BtCursor *pCur, UnpackedRecord *pIdxKey,
  *
  * @param pCur Cursor which will point to ephemeral space.
  * @param[out] pnEntry Number of tuples in ephemeral space.
- *
- * @retval 0
  */
-int tarantoolsqlEphemeralCount(struct BtCursor *pCur, i64 *pnEntry)
+void
+tarantoolsqlEphemeralCount(struct BtCursor *pCur, i64 *pnEntry)
 {
 	assert(pCur->curFlags & BTCF_TEphemCursor);
-
 	struct index *primary_index = space_index(pCur->space, 0 /* PK */);
 	*pnEntry = index_count(primary_index, pCur->iter_type, NULL, 0);
-	return 0;
 }
 
-int tarantoolsqlCount(BtCursor *pCur, i64 *pnEntry)
+void
+tarantoolsqlCount(BtCursor *pCur, i64 *pnEntry)
 {
 	assert(pCur->curFlags & BTCF_TaCursor);
-
 	*pnEntry = index_count(pCur->index, pCur->iter_type, NULL, 0);
-	return 0;
 }
 
 struct space *
@@ -408,13 +404,13 @@ int tarantoolsqlEphemeralInsert(struct space *space, const char *tuple,
 }
 
 /* Simply delete ephemeral space by calling space_delete(). */
-int tarantoolsqlEphemeralDrop(BtCursor *pCur)
+void
+tarantoolsqlEphemeralDrop(BtCursor *pCur)
 {
 	assert(pCur);
 	assert(pCur->curFlags & BTCF_TEphemCursor);
 	space_delete(pCur->space);
 	pCur->space = NULL;
-	return 0;
 }
 
 static inline int

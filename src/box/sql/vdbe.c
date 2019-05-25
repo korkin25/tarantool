@@ -2805,11 +2805,9 @@ case OP_Count: {         /* out2 */
 	assert(pCrsr);
 	nEntry = 0;  /* Not needed.  Only used to silence a warning. */
 	if (pCrsr->curFlags & BTCF_TaCursor) {
-		if (tarantoolsqlCount(pCrsr, &nEntry) != 0)
-			goto abort_due_to_error;
+		tarantoolsqlCount(pCrsr, &nEntry);
 	} else if (pCrsr->curFlags & BTCF_TEphemCursor) {
-		if (tarantoolsqlEphemeralCount(pCrsr, &nEntry) != 0)
-			goto abort_due_to_error;
+		tarantoolsqlEphemeralCount(pCrsr, &nEntry);
 	} else {
 		unreachable();
 	}
