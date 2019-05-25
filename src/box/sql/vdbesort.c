@@ -1778,9 +1778,6 @@ sqlVdbeSorterWrite(const VdbeCursor * pCsr,	/* Sorter cursor */
 	 *
 	 *   * The total memory allocated for the in-memory list is greater
 	 *     than (page-size * cache-size), or
-	 *
-	 *   * The total memory allocated for the in-memory list is greater
-	 *     than (page-size * 10) and sqlHeapNearlyFull() returns true.
 	 */
 	nReq = pVal->n + sizeof(SorterRecord);
 	nPMA = pVal->n + sqlVarintLen(pVal->n);
@@ -1789,10 +1786,7 @@ sqlVdbeSorterWrite(const VdbeCursor * pCsr,	/* Sorter cursor */
 			bFlush = pSorter->iMemory
 			    && (pSorter->iMemory + nReq) > pSorter->mxPmaSize;
 		} else {
-			bFlush = ((pSorter->list.szPMA > pSorter->mxPmaSize)
-				  || (pSorter->list.szPMA > pSorter->mnPmaSize
-				      && sqlHeapNearlyFull())
-			    );
+			bFlush = ((pSorter->list.szPMA > pSorter->mxPmaSize));
 		}
 		if (bFlush) {
 			rc = vdbeSorterFlushPMA(pSorter);

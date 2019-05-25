@@ -514,11 +514,6 @@ sqlRunParser(Parse * pParse, const char *zSql)
 		}
 	}
 	pParse->zTail = &zSql[i];
-#ifdef YYTRACKMAXSTACKDEPTH
-	sqlStatusHighwater(SQL_STATUS_PARSER_STACK,
-			       sqlParserStackPeak(pEngine)
-	    );
-#endif				/* YYDEBUG */
 	sqlParserFree(pEngine, sql_free);
 	if (db->mallocFailed)
 		pParse->is_aborted = true;

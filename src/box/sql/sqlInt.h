@@ -369,16 +369,10 @@ void *
 sql_malloc64(sql_uint64);
 
 void *
-sql_realloc(void *, int);
-
-void *
 sql_realloc64(void *, sql_uint64);
 
 void
 sql_free(void *);
-
-sql_uint64
-sql_msize(void *);
 
 int
 sql_stricmp(const char *, const char *);
@@ -1429,11 +1423,7 @@ struct sql {
  * than being distinct from one another.
  */
 #define SQL_MAGIC_OPEN     0xa029a697	/* Database is open */
-#define SQL_MAGIC_CLOSED   0x9f3c2d33	/* Database is closed */
-#define SQL_MAGIC_SICK     0x4b771290	/* Error and awaiting close */
 #define SQL_MAGIC_BUSY     0xf03b7906	/* Database currently in use */
-#define SQL_MAGIC_ERROR    0xb5357930	/* An sql_MISUSE error occurred */
-#define SQL_MAGIC_ZOMBIE   0x64cffc7f	/* Close with last statement close */
 
 /**
  * SQL type definition. Now it is an alias to type, but in
@@ -2904,7 +2894,6 @@ unsigned sqlStrlen30(const char *);
 #define sqlStrNICmp sql_strnicmp
 
 void sqlMallocInit(void);
-void sqlMallocEnd(void);
 void *sqlMalloc(u64);
 void *sqlMallocZero(u64);
 void *sqlDbMallocZero(sql *, u64);
@@ -2918,15 +2907,12 @@ void *sqlDbRealloc(sql *, void *, u64);
 void sqlDbFree(sql *, void *);
 int sqlMallocSize(void *);
 int sqlDbMallocSize(void *);
-void *sqlScratchMalloc(int);
-void sqlScratchFree(void *);
 void *sqlPageMalloc(int);
 void sqlPageFree(void *);
 void sqlMemSetDefault(void);
 #ifndef SQL_UNTESTABLE
 void sqlBenignMallocHooks(void (*)(void), void (*)(void));
 #endif
-int sqlHeapNearlyFull(void);
 
 /*
  * On systems with ample stack space and that support alloca(), make
@@ -2946,7 +2932,6 @@ int sqlHeapNearlyFull(void);
 #define sqlStackFree(D,P)       sqlDbFree(D,P)
 #endif
 
-sql_int64 sqlStatusValue(int);
 void sqlStatusUp(int, int);
 void sqlStatusDown(int, int);
 void sqlStatusHighwater(int, int);
@@ -2982,7 +2967,6 @@ void sqlTreeViewSelect(TreeView *, const Select *, u8);
 void sqlTreeViewWith(TreeView *, const With *);
 #endif
 
-void sqlSetString(char **, sql *, const char *);
 void sqlDequote(char *);
 
 /**
