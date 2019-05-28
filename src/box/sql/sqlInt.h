@@ -3003,7 +3003,7 @@ sql_store_select(struct Parse *parse_context, struct Select *select);
 void
 sql_drop_table(struct Parse *);
 void sqlInsert(Parse *, SrcList *, Select *, IdList *,
-	       enum on_conflict_action);
+	       enum on_conflict_action, bool);
 void *sqlArrayAllocate(sql *, void *, int, int *, int *);
 
 /**

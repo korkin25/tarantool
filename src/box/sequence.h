@@ -140,9 +140,6 @@ sequence_next(struct sequence *seq, int64_t *result);
 int
 access_check_sequence(struct sequence *seq);
 
-int
-vdbe_add_new_autoinc_id(struct Vdbe *vdbe, int64_t id);
-
 /**
  * Create an iterator over sequence data.
  *
@@ -152,6 +149,16 @@ vdbe_add_new_autoinc_id(struct Vdbe *vdbe, int64_t id);
  */
 struct snapshot_iterator *
 sequence_data_iterator_create(void);
+
+/**
+ * Get last element of given sequence.
+ *
+ * @param seq sequence to get value from.
+ * @param[out] out_value last element of sequence.
+ * @retval 0 on success, -1 on error.
+ */
+int
+sequence_get_value(struct sequence *seq, int64_t *out_value);
 
 #if defined(__cplusplus)
 } /* extern "C" */

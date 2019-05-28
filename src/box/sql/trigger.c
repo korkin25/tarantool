@@ -631,14 +631,10 @@ codeTriggerProgram(Parse * pParse,	/* The parser context */
 				break;
 			}
 		case TK_INSERT:{
-				sqlInsert(pParse,
-					      targetSrcList(pParse, pStep),
-					      sqlSelectDup(db,
-							       pStep->pSelect,
-							       0),
-					      sqlIdListDup(db,
-							       pStep->pIdList),
-					      pParse->eOrconf);
+				sqlInsert(pParse, targetSrcList(pParse, pStep),
+					  sqlSelectDup(db, pStep->pSelect, 0),
+					  sqlIdListDup(db, pStep->pIdList),
+					  pParse->eOrconf, true);
 				break;
 			}
 		case TK_DELETE:{

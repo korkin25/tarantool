@@ -559,7 +559,7 @@ vdbe_autoinc_id_list(struct Vdbe *vdbe)
 	return &vdbe->autoinc_id_list;
 }
 
-int
+static int
 vdbe_add_new_autoinc_id(struct Vdbe *vdbe, int64_t id)
 {
 	assert(vdbe != NULL);
@@ -1150,16 +1150,19 @@ case OP_String: {          /* out2 */
 }
 
 /* Opcode: NextAutoincValue P1 P2 * * *
- * Synopsis: r[P2] = next value from space sequence, which pageno is r[P1]
  *
- * Get next value from space sequence, which pageno is written into register
- * P1, write this value into register P2. If space doesn't exists (invalid
- * space_id or something else), raise an error. If space with
- * specified space_id doesn't have attached sequence, also raise an error.
+ * If the value in the register P2 is NULL, get the last value
+ * from the sequence that belongs to the space with id P1, and
+ * save this value in the VDBE. If the value in register in not
+ * NULL than this opcode is a no-op.
  */
 case OP_NextAutoincValue: {
 	assert(pOp->p1 > 0);
 	assert(pOp->p2 > 0);
+
+	pIn2 = &p->aMem[pOp->p2];
+	if ((pIn2->flags & MEM_Null) == 0)
+		break;
 
 	struct space *space = space_by_id(pOp->p1);
 	if (space == NULL)
@@ -1167,12 +1170,10 @@ case OP_NextAutoincValue: {
 
 	int64_t value;
 	struct sequence *sequence = space->sequence;
-	if (sequence == NULL || sequence_next(sequence, &value) != 0)
+	if (sequence == NULL || sequence_get_value(sequence, &value) != 0)
 		goto abort_due_to_error;
 
-	pOut = out2Prerelease(p, pOp);
-	pOut->flags = MEM_Int;
-	pOut->u.i = value;
+	vdbe_add_new_autoinc_id(p, value);
 
 	break;
 }

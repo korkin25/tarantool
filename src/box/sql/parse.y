@@ -826,7 +826,7 @@ cmd ::= with(W) insert_cmd(R) INTO fullname(X) idlist_opt(F) select(S). {
   sqlSubProgramsRemaining = SQL_MAX_COMPILING_TRIGGERS;
   /* Instruct SQL to initate Tarantool's transaction.  */
   pParse->initiateTTrans = true;
-  sqlInsert(pParse, X, S, F, R);
+  sqlInsert(pParse, X, S, F, R, false);
 }
 cmd ::= with(W) insert_cmd(R) INTO fullname(X) idlist_opt(F) DEFAULT VALUES.
 {
@@ -834,7 +834,7 @@ cmd ::= with(W) insert_cmd(R) INTO fullname(X) idlist_opt(F) DEFAULT VALUES.
   sqlSubProgramsRemaining = SQL_MAX_COMPILING_TRIGGERS;
   /* Instruct SQL to initate Tarantool's transaction.  */
   pParse->initiateTTrans = true;
-  sqlInsert(pParse, X, 0, F, R);
+  sqlInsert(pParse, X, 0, F, R, false);
 }
 
 %type insert_cmd {int}
