@@ -906,7 +906,7 @@ test:do_execsql_test(
         FROM t7 LIMIT 1;
     ]], {
         -- <table-11.1>
-        "integer", "null", "null", "null", "null", "null", "null", "null"
+        "unsigned", "null", "null", "null", "null", "null", "null", "null"
         -- </table-11.1>
     })
 

@@ -119,7 +119,7 @@ test:do_execsql_test(
 	-- In current situation I don't know what to do, need Kirill's
 	-- advice.
 	-- Bulat
-	1, "integer", 5, "integer", "row1", "string", 5.25, "number", 8.67, "number", "321", "string", 432, "integer"
+	1, "unsigned", 5, "unsigned", "row1", "string", 5.25, "number", 8.67, "number", "321", "string", 432, "unsigned"
 	-- </default-3.1>
 })
 

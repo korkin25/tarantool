@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(14591)
+test:plan(14592)
 
 --!./tcltestrunner.lua
 -- 2001 September 15
@@ -908,7 +908,7 @@ test:do_execsql_test(
                             UNION ALL SELECT -9223372036854775807)
     ]], {
         -- <func-8.6>
-        "integer"
+        "unsigned"
         -- </func-8.6>
     })
 
@@ -919,7 +919,7 @@ test:do_execsql_test(
                             UNION ALL SELECT -9223372036854775807)
     ]], {
         -- <func-8.7>
-        "integer"
+        "unsigned"
         -- </func-8.7>
     })
 
@@ -1587,7 +1587,7 @@ test:do_execsql_test(
         SELECT typeof(sum(x)) FROM t6
     ]], {
         -- <func-18.11>
-        "integer"
+        "unsigned"
         -- </func-18.11>
     })
 
@@ -1742,9 +1742,19 @@ test:do_catchsql_test(
         SELECT abs(-9223372036854775807-1);
     ]], {
         -- <func-18.32>
-        1, "Failed to execute SQL statement: integer is overflowed"
+        0, {9223372036854775808LL}
         -- </func-18.32>
     })
+
+test:do_catchsql_test(
+    "func-18.33",
+    [[
+        SELECT abs(-9223372036854775807-2);
+    ]], {
+        -- <func-18.32>
+        1, "Failed to execute SQL statement: integer is overflowed"
+        -- </func-18.32>
+})
 
 -- The MATCH function exists but is only a stub and always throws an error.
 --

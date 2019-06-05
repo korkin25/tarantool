@@ -496,24 +496,24 @@ s:format({{name='X', type='integer'}, {name='Z', type='any'}})
 _ = s:create_index('pk', {parts = {1, 'integer'}})
 ---
 ...
-_ = box.space._ck_constraint:insert({s.id, 'complex2', false, 'SQL', 'typeof(coalesce(z,0))==\'integer\''})
+_ = box.space._ck_constraint:insert({s.id, 'complex2', false, 'SQL', 'typeof(coalesce(z,0))==\'unsigned\''})
 ---
 ...
 s:insert({1, 'string'})
 ---
-- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''integer'''
+- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''unsigned'''
 ...
 s:insert({1, {map=true}})
 ---
-- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''integer'''
+- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''unsigned'''
 ...
 s:insert({1, {'a', 'r','r','a','y'}})
 ---
-- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''integer'''
+- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''unsigned'''
 ...
 s:insert({1, 3.14})
 ---
-- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''integer'''
+- error: 'Check constraint failed ''complex2'': typeof(coalesce(z,0))==''unsigned'''
 ...
 s:insert({1, 666})
 ---

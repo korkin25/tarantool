@@ -165,7 +165,7 @@ test:do_execsql_test(
         SELECT CAST(b AS integer), typeof(b), CAST(b AS text), typeof(b) FROM t1
     ]], {
         -- <cse-1.10>
-        11, "integer", "11", "integer", 21, "integer", "21", "integer"
+        11, "unsigned", "11", "unsigned", 21, "unsigned", "21", "unsigned"
         -- </cse-1.10>
     })
 
@@ -201,7 +201,7 @@ test:do_execsql_test(
         SELECT upper(b), typeof(b), b FROM t1
     ]], {
         -- <cse-1.13>
-        "11", "integer", 11, "21", "integer", 21
+        "11", "unsigned", 11, "21", "unsigned", 21
         -- </cse-1.13>
     })
 
@@ -211,7 +211,7 @@ test:do_execsql_test(
         SELECT b, typeof(b), upper(b), typeof(b), b FROM t1
     ]], {
         -- <cse-1.14>
-        11, "integer", "11", "integer", 11, 21, "integer", "21", "integer", 21
+        11, "unsigned", "11", "unsigned", 11, 21, "unsigned", "21", "unsigned", 21
         -- </cse-1.14>
     })
 

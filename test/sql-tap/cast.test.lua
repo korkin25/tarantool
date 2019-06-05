@@ -220,7 +220,7 @@ test:do_execsql_test(
         SELECT typeof(123)
     ]], {
         -- <cast-1.22>
-        "integer"
+        "unsigned"
         -- </cast-1.22>
     })
 
@@ -280,7 +280,7 @@ test:do_execsql_test(
         SELECT typeof(CAST(123 AS SCALAR))
     ]], {
         -- <cast-1.28>
-        "integer"
+        "unsigned"
         -- </cast-1.28>
     })
 
@@ -300,7 +300,7 @@ test:do_execsql_test(
         SELECT typeof(CAST(123 AS integer))
     ]], {
         -- <cast-1.30>
-        "integer"
+        "unsigned"
         -- </cast-1.30>
     })
 
@@ -400,7 +400,7 @@ test:do_execsql_test(
         SELECT typeof(CAST(123.456 AS integer))
     ]], {
         -- <cast-1.38>
-        "integer"
+        "unsigned"
         -- </cast-1.38>
     })
 

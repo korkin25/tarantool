@@ -229,7 +229,7 @@ test:do_execsql_test(
         SELECT typeof(b), b FROM t1 GROUP BY a HAVING b='456' 
     ]], {
         -- <tkt3493-2.5.1>
-        "integer", 456
+        "unsigned", 456
         -- </tkt3493-2.5.1>
     })
 
@@ -239,7 +239,7 @@ test:do_execsql_test(
         SELECT typeof(b), b FROM t1 GROUP BY b HAVING b='456' 
     ]], {
         -- <tkt3493-2.5.2>
-        "integer", 456
+        "unsigned", 456
         -- </tkt3493-2.5.2>
     })
 

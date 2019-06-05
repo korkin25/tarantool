@@ -206,7 +206,7 @@ test:do_execsql_test(
     [[
         CREATE TABLE t2(
           id  INT primary key,
-          x SCALAR CONSTRAINT one CHECK( typeof(coalesce(x,0))=='integer'),
+          x SCALAR CONSTRAINT one CHECK( typeof(coalesce(x,0))=='unsigned'),
           y REAL CONSTRAINT two CHECK( typeof(coalesce(y,0.1))=='number' ),
           z SCALAR CONSTRAINT three CHECK( typeof(coalesce(z,''))=='string' )
         );
@@ -246,7 +246,7 @@ test:do_catchsql_test(
         INSERT INTO t2 VALUES(3, 1.1, NULL, NULL);
     ]], {
         -- <check-2.4>
-        1, "Check constraint failed 'ONE': typeof(coalesce(x,0))=='integer'"
+        1, "Check constraint failed 'ONE': typeof(coalesce(x,0))=='unsigned'"
         -- </check-2.4>
     })
 
