@@ -1199,9 +1199,52 @@ memtx_tuple_delete(struct tuple_format *format, struct tuple *tuple)
 		smfree_delayed(&memtx->alloc, memtx_tuple, total);
 }
 
+void
+metmx_tuple_extra_delete(struct tuple_format *format,
+			 struct tuple_extra *tuple_extra)
+{
+	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
+	tuple_extra_cache_unregister(tuple_extra);
+	uint32_t sz = tuple_extra_sz(tuple_extra->data_sz);
+	smfree(&memtx->alloc, tuple_extra, sz);
+}
+
+struct tuple_extra *
+memtx_tuple_extra_new(struct tuple_format *format, struct tuple *tuple,
+		      uint32_t chunk_id, uint32_t data_sz)
+{
+	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
+	uint32_t sz = tuple_extra_sz(data_sz);
+	struct tuple_extra *tuple_extra =
+		(struct tuple_extra *) smalloc(&memtx->alloc, sz);
+	if (tuple == NULL) {
+		diag_set(OutOfMemory, sz, "smalloc", "tuple");
+		return NULL;
+	}
+	tuple_extra->tuple = tuple;
+	tuple_extra->chunk_id = chunk_id;
+	tuple_extra->data_sz = data_sz;
+	if (tuple_extra_cache_register(tuple_extra) != 0) {
+		smfree(&memtx->alloc, tuple_extra, sz);
+		return NULL;
+	}
+	return tuple_extra;
+}
+
+static inline  struct tuple_extra *
+memtx_tuple_extra_get(struct tuple_format *format, struct tuple *tuple,
+		      uint32_t chunk_id)
+{
+	(void) format;
+	return tuple_extra_cache_find(tuple, chunk_id);
+}
+
 struct tuple_format_vtab memtx_tuple_format_vtab = {
 	memtx_tuple_delete,
 	memtx_tuple_new,
+	metmx_tuple_extra_delete,
+	memtx_tuple_extra_new,
+	memtx_tuple_extra_get,
 };
 
 /**

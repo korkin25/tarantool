@@ -64,6 +64,7 @@ enum { TUPLE_INDEX_BASE = 1 };
 enum { TUPLE_OFFSET_SLOT_NIL = INT32_MAX };
 
 struct tuple;
+struct tuple_extra;
 struct tuple_format;
 struct coll;
 
@@ -82,6 +83,27 @@ struct tuple_format_vtab {
 	struct tuple*
 	(*tuple_new)(struct tuple_format *format, const char *data,
 	             const char *end);
+	/**
+	 * Free allocated tuple extra for given tuple and unique
+	 * chunk_id identifier.
+	 */
+	void
+	(*tuple_extra_delete)(struct tuple_format *format,
+			      struct tuple_extra *tuple_extra);
+	/**
+	 * Allocate a new extra allocation for given tuple and
+	 * unique chunk_id identifier.
+	 */
+	struct tuple_extra *
+	(*tuple_extra_new)(struct tuple_format *format, struct tuple *tuple,
+			   uint32_t chunk_id, uint32_t data_sz);
+	/**
+	 * Get an existent extra allocation for given tuple and
+	 * unique chunk_id identifier.
+	 */
+	struct tuple_extra *
+	(*tuple_extra_get)(struct tuple_format *format, struct tuple *tuple,
+			   uint32_t chunk_id);
 };
 
 /** Tuple field meta information for tuple_format. */

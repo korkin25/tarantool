@@ -447,6 +447,77 @@ tuple_delete(struct tuple *tuple)
 	format->vtab.tuple_delete(format, tuple);
 }
 
+/** Tuple metadata hashtable entry. */
+struct tuple_extra {
+	/** Tuple pointer is used as a hash key. */
+	struct tuple *tuple;
+	/** An extention identifier. */
+	uint32_t chunk_id;
+	/** The payload size. Needed to perform memory release.*/
+	uint32_t data_sz;
+	/** Metadata object payload. */
+	char data[0];
+};
+
+/** Calculate the size of tuple_extra object by given data_sz. */
+uint32_t
+tuple_extra_sz(uint32_t data_sz);
+
+/**
+ * Lookup for tuple_extra by given tuple and chunk_id in the tuple
+ * extra hashtable.
+ */
+struct tuple_extra *
+tuple_extra_cache_find(struct tuple *tuple, uint32_t chunk_id);
+
+/**
+ * Register a new tuple_extra extention in the tuple extra
+ * hashtable.
+ */
+int
+tuple_extra_cache_register(struct tuple_extra *tuple_extra);
+
+/**
+ * Unregister a given tuple_extra extention in the tuple extra
+ * hashtable.
+ */
+void
+tuple_extra_cache_unregister(struct tuple_extra *tuple_extra);
+
+/**
+ * Allocate a new extra allocation for given tuple and
+ * unique chunk_id identifier.
+ */
+static inline struct tuple_extra *
+tuple_extra_new(struct tuple *tuple, uint32_t chunk_id, uint32_t data_sz)
+{
+	struct tuple_format *format = tuple_format(tuple);
+	return format->vtab.tuple_extra_new(format, tuple, chunk_id, data_sz);
+}
+
+/**
+ * Free allocated tuple extra for given tuple and unique
+ * chunk_id identifier.
+ */
+static inline void
+tuple_extra_delete(struct tuple_extra *tuple_extra)
+{
+	struct tuple_format *format =
+		tuple_format(tuple_extra->tuple);
+	format->vtab.tuple_extra_delete(format, tuple_extra);
+}
+
+/**
+ * Get an existent extra allocation for given tuple and
+ * unique chunk_id identifier.
+ */
+static inline  struct tuple_extra *
+tuple_extra_get(struct tuple *tuple, uint32_t chunk_id)
+{
+	struct tuple_format *format = tuple_format(tuple);
+	return format->vtab.tuple_extra_get(format, tuple, chunk_id);
+}
+
 /**
  * Check tuple data correspondence to space format.
  * Actually, checks everything that is checked by

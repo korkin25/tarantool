@@ -42,6 +42,21 @@
 static struct mempool tuple_iterator_pool;
 static struct small_alloc runtime_alloc;
 
+/** Map: (struct tuple *) => (struct tuple_extra  *). */
+#define MH_SOURCE 1
+#define mh_name _tuple_extra
+#define mh_key_t struct tuple *
+#define mh_node_t struct tuple_extra *
+#define mh_arg_t uint32_t
+#define mh_hash(a, arg) ((uintptr_t)(*(a))->tuple)
+#define mh_hash_key(a, arg) ((uintptr_t) a)
+#define mh_cmp(a, b, arg) ((*(a))->tuple != (*(b))->tuple || \
+			   (*(a))->chunk_id != (*(b))->chunk_id)
+#define mh_cmp_key(a, b, arg) ((a) != (*(b))->tuple || (arg) != (*(b))->chunk_id)
+#include "salad/mhash.h"
+
+static struct mh_tuple_extra_t *tuple_extra_cache;
+
 enum {
 	/** Lowest allowed slab_alloc_minimal */
 	OBJSIZE_MIN = 16,
@@ -67,6 +82,9 @@ runtime_tuple_new(struct tuple_format *format, const char *data, const char *end
 static struct tuple_format_vtab tuple_format_runtime_vtab = {
 	runtime_tuple_delete,
 	runtime_tuple_new,
+	NULL,
+	NULL,
+	NULL,
 };
 
 static struct tuple *
@@ -301,6 +319,10 @@ tuple_init(field_name_hash_f hash)
 	if (tuple_format_runtime == NULL)
 		return -1;
 
+	tuple_extra_cache = mh_tuple_extra_new();
+	if (tuple_extra_cache == NULL)
+		return -1;
+
 	/* Make sure this one stays around. */
 	tuple_format_ref(tuple_format_runtime);
 
@@ -373,6 +395,9 @@ tuple_free(void)
 
 	mempool_destroy(&tuple_iterator_pool);
 	small_alloc_destroy(&runtime_alloc);
+
+	assert(mh_size(tuple_extra_cache) == 0);
+	mh_tuple_extra_delete(tuple_extra_cache);
 
 	tuple_format_free();
 
@@ -784,4 +809,44 @@ mp_str(const char *data)
 	if (mp_snprint(buf, TT_STATIC_BUF_LEN, data) < 0)
 		return "<failed to format message pack>";
 	return buf;
+}
+
+uint32_t
+tuple_extra_sz(uint32_t data_sz)
+{
+	return sizeof(struct tuple_extra) + data_sz;
+}
+
+int
+tuple_extra_cache_register(struct tuple_extra *tuple_extra)
+{
+	mh_int_t id = mh_tuple_extra_put(tuple_extra_cache,
+				(const struct tuple_extra **)&tuple_extra,
+				NULL, 0);
+	if (id == mh_end(tuple_extra_cache))
+		return -1;
+	return 0;
+}
+
+void
+tuple_extra_cache_unregister(struct tuple_extra *tuple_extra)
+{
+	struct tuple *tuple = tuple_extra->tuple;
+	uint32_t chunk_id = tuple_extra->chunk_id;
+	mh_int_t id = mh_tuple_extra_find(tuple_extra_cache,
+					  tuple, chunk_id);
+	assert(id != mh_end(tuple_extra_cache));
+	mh_tuple_extra_del(tuple_extra_cache, id, chunk_id);
+}
+
+struct tuple_extra *
+tuple_extra_cache_find(struct tuple *tuple, uint32_t chunk_id)
+{
+	mh_int_t id = mh_tuple_extra_find(tuple_extra_cache, tuple, chunk_id);
+	if (id == mh_end(tuple_extra_cache))
+		return NULL;
+	struct tuple_extra **tuple_extra_ptr =
+		mh_tuple_extra_node(tuple_extra_cache, id);
+	assert(tuple_extra_ptr != NULL && *tuple_extra_ptr != NULL);
+	return *tuple_extra_ptr;
 }
