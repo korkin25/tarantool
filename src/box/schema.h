@@ -36,6 +36,7 @@
 #include "error.h"
 #include "space.h"
 #include "latch.h"
+#include "func_cache.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,9 +89,6 @@ space_cache_find(uint32_t id)
 	diag_set(ClientError, ER_NO_SUCH_SPACE, int2str(id));
 	return NULL;
 }
-
-struct func *
-func_by_name(const char *name, uint32_t name_len);
 
 /** Call a visitor function on every space in the space cache. */
 int
@@ -161,21 +159,6 @@ void
 schema_free();
 
 struct space *schema_space(uint32_t id);
-
-/**
- * Insert a new function object in the function cache.
- * @param func Function object to insert.
- */
-void
-func_cache_insert(struct func *func);
-
-void
-func_cache_delete(uint32_t fid);
-
-struct func;
-
-struct func *
-func_by_id(uint32_t fid);
 
 static inline struct func *
 func_cache_find(uint32_t fid)

@@ -38,6 +38,7 @@
 
 #include "tuple_update.h"
 #include "coll_id_cache.h"
+#include "func_cache.h"
 
 static struct mempool tuple_iterator_pool;
 static struct small_alloc runtime_alloc;
@@ -339,6 +340,9 @@ tuple_init(field_name_hash_f hash)
 	if (coll_id_cache_init() != 0)
 		return -1;
 
+	if (func_cache_init() != 0)
+		return -1;
+
 	return 0;
 }
 
@@ -402,6 +406,8 @@ tuple_free(void)
 	tuple_format_free();
 
 	coll_id_cache_destroy();
+
+	func_cache_destroy();
 
 	bigref_list_destroy();
 }
