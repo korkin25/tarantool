@@ -33,8 +33,12 @@
 #include "third_party/PMurHash.h"
 #include "diag.h"
 #include "assoc.h"
+#include <small/region.h>
+#include "fiber.h"
 #include <unicode/ucol.h>
 #include <unicode/ucasemap.h>
+#include <unicode/usearch.h>
+#include <unicode/ustring.h>
 #include "tt_static.h"
 
 struct UCaseMap *icu_ucase_default_map = NULL;
@@ -160,6 +164,64 @@ coll_bin_hint(const char *s, size_t s_len, char *buf, size_t buf_len,
 	return len;
 }
 
+static int32_t
+coll_icu_search(const char *pat, int32_t pat_len, const char *s, int32_t s_len,
+		struct coll *coll)
+{
+	assert(coll->collator != NULL);
+	UErrorCode status = U_ZERO_ERROR;
+
+	size_t used = region_used(&fiber()->gc);
+
+	UChar *pattern = (UChar *) region_alloc(&fiber()->gc, pat_len + 1);
+	UChar *target = (UChar *) region_alloc(&fiber()->gc, s_len + 1);
+	u_uastrcpy(pattern, pat);
+	u_uastrcpy(target, s);
+
+	UStringSearch *strsrch;
+
+	strsrch = usearch_openFromCollator(pattern, pat_len,
+					   target, s_len,
+					   coll->collator, NULL, &status);
+
+	int pos = 0;
+	if (U_SUCCESS(status))
+		pos = usearch_first(strsrch, &status);
+	usearch_close(strsrch);
+	region_truncate(&fiber()->gc, used);
+
+	return pos;
+}
+
+static int32_t
+coll_bin_search(const char *pat, int32_t pat_len, const char *s, int32_t s_len,
+		struct coll *coll)
+{
+	assert(coll->collator != NULL);
+	UErrorCode status = U_ZERO_ERROR;
+
+	size_t used = region_used(&fiber()->gc);
+
+	UChar *pattern = (UChar *) region_alloc(&fiber()->gc, pat_len + 1);
+	UChar *target = (UChar *) region_alloc(&fiber()->gc, s_len + 1);
+	u_uastrcpy(pattern, pat);
+	u_uastrcpy(target, s);
+
+	UStringSearch *strsrch;
+
+	strsrch = usearch_openFromCollator(pattern, pat_len,
+					   target, s_len,
+					   coll->collator, NULL, &status);
+
+	int pos = 0;
+	if (U_SUCCESS(status))
+		pos = usearch_first(strsrch, &status);
+	usearch_close(strsrch);
+	region_truncate(&fiber()->gc, used);
+
+	return pos;
+}
+
 /**
  * Set up ICU collator and init cmp and hash members of collation.
  * @param coll Collation to set up.
@@ -270,6 +332,7 @@ coll_icu_init_cmp(struct coll *coll, const struct coll_def *def)
 	coll->cmp = coll_icu_cmp;
 	coll->hash = coll_icu_hash;
 	coll->hint = coll_icu_hint;
+	coll->search = coll_icu_search;
 	return 0;
 }
 
@@ -385,6 +448,7 @@ coll_new(const struct coll_def *def)
 		coll->cmp = coll_bin_cmp;
 		coll->hash = coll_bin_hash;
 		coll->hint = coll_bin_hint;
+		coll->search = coll_bin_search;
 		break;
 	default:
 		unreachable();

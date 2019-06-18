@@ -158,6 +158,40 @@ hash_test()
 }
 
 void
+search_test()
+{
+	header();
+
+	struct coll_def def;
+	memset(&def, 0, sizeof(def));
+	snprintf(def.locale, sizeof(def.locale), "%s", "en_EN");
+	def.type = COLL_TYPE_ICU;
+	def.icu.strength = COLL_ICU_STRENGTH_IDENTICAL;
+	struct coll *coll;
+
+	/* Case sensitive */
+	coll = coll_new(&def);
+	assert(coll != NULL);
+	cout << "Case sensitive" << endl;
+	cout << (coll->search("A", 1, "a", 1, coll) == -1 ? "OK" : "Fail") << endl; /* USEARCH_DONE???*/
+	cout << (coll->search("b", 1, "aaaB", 4, coll) == -1 ? "OK" : "Fail") << endl;
+	coll_unref(coll);
+
+	/* Case insensitive */
+	def.icu.strength = COLL_ICU_STRENGTH_SECONDARY;
+	coll = coll_new(&def);
+	assert(coll != NULL);
+	cout << "Case insensitive" << endl;
+	cout << coll->search("a", 1, "a", 1, coll) << endl;
+	cout << (coll->search("a", 1, "a", 1, coll) == 0 ? "OK" : "Fail") << endl;
+	cout << (coll->search("a", 1, "A", 1, coll) == 0 ? "OK" : "Fail") << endl;
+	cout << (coll->search("b", 1, "aaaB", 4, coll) == 3 ? "OK" : "Fail") << endl;
+	coll_unref(coll);
+
+	footer();
+}
+
+void
 cache_test()
 {
 	header();
@@ -192,6 +226,7 @@ main(int, const char**)
 	fiber_init(fiber_c_invoke);
 	manual_test();
 	hash_test();
+	search_test();
 	cache_test();
 	fiber_free();
 	memory_free();

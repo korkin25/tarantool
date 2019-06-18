@@ -51,6 +51,9 @@ typedef uint32_t (*coll_hash_f)(const char *s, size_t s_len, uint32_t *ph,
 typedef size_t (*coll_hint_f)(const char *s, size_t s_len, char *buf,
 			      size_t buf_len, struct coll *coll);
 
+typedef int32_t (*coll_search_f)(const char *pat, int32_t pat_len, const char *s,
+				 int32_t s_len, struct coll *coll);
+
 struct UCollator;
 
 /** Default universal casemap for case transformations. */
@@ -77,6 +80,8 @@ struct coll {
 	 * copied. Sort keys may be compared using strcmp().
 	 */
 	coll_hint_f hint;
+	/** Pattern match function. */
+	coll_search_f search;
 	/** Reference counter. */
 	int refs;
 	/**
