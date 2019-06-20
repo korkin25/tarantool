@@ -319,12 +319,13 @@ key_validate(const struct index_def *index_def, enum iterator_type type,
 /**
  * Check that the supplied key is valid for a search in a unique
  * index (i.e. the key must be fully specified).
+ * Update the pointer key_end to the end of the validated key.
  * @retval 0  The key is valid.
  * @retval -1 The key is invalid.
  */
 int
 exact_key_validate(struct key_def *key_def, const char *key,
-		   uint32_t part_count);
+		   uint32_t part_count, const char **key_end);
 
 /**
  * The manner in which replace in a unique index must treat

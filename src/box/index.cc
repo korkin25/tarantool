@@ -126,8 +126,9 @@ key_validate(const struct index_def *index_def, enum iterator_type type,
 				 part_count);
 			return -1;
 		}
+		const char *key_end;
 		if (key_validate_parts(index_def->key_def, key,
-				       part_count, true) != 0)
+				       part_count, true, &key_end) != 0)
 			return -1;
 	}
 	return 0;
@@ -135,7 +136,7 @@ key_validate(const struct index_def *index_def, enum iterator_type type,
 
 int
 exact_key_validate(struct key_def *key_def, const char *key,
-		   uint32_t part_count)
+		   uint32_t part_count, const char **key_end)
 {
 	assert(key != NULL || part_count == 0);
 	if (key_def->part_count != part_count) {
@@ -143,7 +144,7 @@ exact_key_validate(struct key_def *key_def, const char *key,
 			 part_count);
 		return -1;
 	}
-	return key_validate_parts(key_def, key, part_count, false);
+	return key_validate_parts(key_def, key, part_count, false, key_end);
 }
 
 char *
@@ -233,7 +234,8 @@ box_index_get(uint32_t space_id, uint32_t index_id, const char *key,
 		return -1;
 	}
 	uint32_t part_count = mp_decode_array(&key);
-	if (exact_key_validate(index->def->key_def, key, part_count))
+	if (exact_key_validate(index->def->key_def, key, part_count,
+			       &key_end))
 		return -1;
 	/* Start transaction in the engine. */
 	struct txn *txn;

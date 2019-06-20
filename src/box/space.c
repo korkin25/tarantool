@@ -298,7 +298,7 @@ space_before_replace(struct space *space, struct txn *txn,
 	enum iproto_type type = request->type;
 	struct index *pk = space_index(space, 0);
 
-	const char *key = NULL;
+	const char *key_end, *key = NULL;
 	uint32_t part_count = 0;
 	struct index *index = NULL;
 
@@ -314,7 +314,7 @@ space_before_replace(struct space *space, struct txn *txn,
 		key = request->key;
 		part_count = mp_decode_array(&key);
 		if (exact_key_validate(index->def->key_def,
-				       key, part_count) != 0)
+				       key, part_count, &key_end) != 0)
 			return -1;
 		break;
 	case IPROTO_INSERT:
