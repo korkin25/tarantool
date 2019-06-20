@@ -53,7 +53,7 @@ add_library(tuple STATIC
     field_def.c
     opt_def.c
 )
-target_link_libraries(tuple json box_error core ${MSGPUCK_LIBRARIES} ${ICU_LIBRARIES} misc bit)
+target_link_libraries(tuple json box_error core coll ${MSGPUCK_LIBRARIES} ${ICU_LIBRARIES} misc bit)
 
 add_library(xlog STATIC xlog.c)
 target_link_libraries(xlog core box_error crc32 ${ZSTD_LIBRARIES})
@@ -126,6 +126,7 @@ add_library(box STATIC
     wal.c
     call.c
     merger.c
+    functional_key.c
     ${lua_sources}
     lua/init.c
     lua/call.c

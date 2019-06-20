@@ -18,7 +18,7 @@ vy_iterator_C_test_init(size_t cache_size)
 
 	memory_init();
 	fiber_init(fiber_c_invoke);
-	tuple_init(NULL);
+	tuple_init(NULL, NULL);
 	vy_stmt_env_create(&stmt_env);
 	vy_cache_env_create(&cache_env, cord_slab_cache());
 	vy_cache_env_set_quota(&cache_env, cache_size);

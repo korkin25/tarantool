@@ -36,6 +36,8 @@
 #include <small/mempool.h>
 
 #include "fiber.h"
+#include "func.h"
+#include "functional_key.h"
 #include "errinj.h"
 #include "coio_file.h"
 #include "tuple.h"
@@ -133,6 +135,22 @@ memtx_end_build_primary_key(struct space *space, void *param)
 	    memtx_space->replace == memtx_space_replace_all_keys)
 		return 0;
 
+	struct functional_handle *handle;
+	rlist_foreach_entry(handle, &space->format->functional_handle, link) {
+		/**
+		 * The functional handle function pointer
+		 * initialization had been delayed during
+		 * recovery. Now it is possible to initialize it.
+		 * When space is empty, the functional handle
+		 * didn't been initialized yet, so the function
+		 * object has no reference and may be dropped.
+		 */
+		if (likely(handle->func != NULL))
+			continue;
+		handle->func = func_by_id(handle->key_def->functional_fid);
+		assert(handle->func != NULL);
+		func_ref(handle->func);
+	}
 	index_end_build(space->index[0]);
 	memtx_space->replace = memtx_space_replace_primary_key;
 	return 0;
@@ -1175,6 +1193,19 @@ memtx_tuple_new(struct tuple_format *format, const char *data, const char *end)
 	char *raw = (char *) tuple + tuple->data_offset;
 	field_map_build(&builder, raw - field_map_size);
 	memcpy(raw, data, tuple_len);
+	if (!rlist_empty(&format->functional_handle)) {
+		if (functional_keys_materialize(format, tuple) != 0) {
+			if (tuple->refs == 0) {
+				memtx_tuple_delete(format, tuple);
+			} else {
+				/**
+				 * The garbage collector must
+				 * remove the tuple later.
+				 */
+			}
+			return NULL;
+		}
+	}
 	say_debug("%s(%zu) = %p", __func__, tuple_len, memtx_tuple);
 end:
 	region_truncate(region, region_svp);
@@ -1187,6 +1218,8 @@ memtx_tuple_delete(struct tuple_format *format, struct tuple *tuple)
 	struct memtx_engine *memtx = (struct memtx_engine *)format->engine;
 	say_debug("%s(%p)", __func__, tuple);
 	assert(tuple->refs == 0);
+	if (!rlist_empty(&format->functional_handle))
+		functional_keys_terminate(format, tuple);
 	tuple_format_unref(format);
 	struct memtx_tuple *memtx_tuple =
 		container_of(tuple, struct memtx_tuple, base);
@@ -1336,6 +1369,9 @@ memtx_index_def_change_requires_rebuild(struct index *index,
 	if (old_def->type != new_def->type)
 		return true;
 	if (!old_def->opts.is_unique && new_def->opts.is_unique)
+		return true;
+	if (functional_def_cmp(old_def->opts.functional_def,
+			       new_def->opts.functional_def) != 0)
 		return true;
 
 	const struct key_def *old_cmp_def, *new_cmp_def;

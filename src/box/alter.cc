@@ -29,6 +29,7 @@
  * SUCH DAMAGE.
  */
 #include "alter.h"
+#include "box.h"
 #include "ck_constraint.h"
 #include "column_mask.h"
 #include "schema.h"
@@ -233,6 +234,20 @@ index_opts_decode(struct index_opts *opts, const char *map,
 			  "bloom_fpr must be greater than 0 and "
 			  "less than or equal to 1");
 	}
+	/**
+	 * Can't verify functional index extractor routine
+	 * reference on load because the function object
+	 * had not been registered in Tarantool yet.
+	 */
+	if (opts->functional_def != NULL &&
+	    strcmp(box_status(), "loading") != 0) {
+		struct func *func = func_by_id(opts->functional_def->fid);
+		if (func == NULL) {
+			tnt_raise(ClientError, ER_WRONG_INDEX_OPTIONS,
+				  BOX_INDEX_FIELD_OPTS,
+				  "referenced function doesn't exists");
+		}
+	}
 }
 
 /**
@@ -246,6 +261,7 @@ index_opts_decode(struct index_opts *opts, const char *map,
  * - there are parts for the specified part count
  * - types of parts in the parts array are known to the system
  * - fieldno of each part in the parts array is within limits
+ * - referenced functional index extractor routine is valid
  */
 static struct index_def *
 index_def_new_from_tuple(struct tuple *tuple, struct space *space)
@@ -289,7 +305,7 @@ index_def_new_from_tuple(struct tuple *tuple, struct space *space)
 				 space->def->fields,
 				 space->def->field_count, &fiber()->gc) != 0)
 		diag_raise();
-	key_def = key_def_new(part_def, part_count);
+	key_def = key_def_new(part_def, part_count, opts.functional_def);
 	if (key_def == NULL)
 		diag_raise();
 	struct index_def *index_def =
@@ -2695,6 +2711,11 @@ on_replace_dd_func(struct trigger * /* trigger */, void *event)
 			tnt_raise(ClientError, ER_DROP_FUNCTION,
 				  (unsigned) old_func->def->uid,
 				  "function has grants");
+		}
+		if (old_func != NULL && old_func->refs != 0) {
+			tnt_raise(ClientError, ER_DROP_FUNCTION,
+				  (unsigned) old_func->def->uid,
+				  "function has references");
 		}
 		struct trigger *on_commit =
 			txn_alter_trigger_new(func_cache_remove_func, old_func);

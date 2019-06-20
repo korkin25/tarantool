@@ -968,6 +968,7 @@ local alter_index_template = {
     type = 'string',
     parts = 'table',
     sequence = 'boolean, number, string, table',
+    functional = 'table',
 }
 for k, v in pairs(index_options) do
     alter_index_template[k] = v
@@ -1061,6 +1062,7 @@ box.schema.index.create = function(space_id, name, options)
             run_count_per_level = options.run_count_per_level,
             run_size_ratio = options.run_size_ratio,
             bloom_fpr = options.bloom_fpr,
+            functional = options.functional,
     }
     local field_type_aliases = {
         num = 'unsigned'; -- Deprecated since 1.7.2

@@ -45,6 +45,14 @@ extern "C" {
 struct slab_arena;
 struct quota;
 struct key_part;
+struct func;
+struct tuple;
+
+typedef const char *
+(*functional_key_extractor)(struct tuple *tuple, uint32_t functional_fid,
+			    uint32_t *key_count, uint32_t **key_map);
+
+extern functional_key_extractor box_functional_key_get;
 
 /**
  * A format for standalone tuples allocated on runtime arena.
@@ -54,7 +62,7 @@ extern struct tuple_format *tuple_format_runtime;
 
 /** Initialize tuple library */
 int
-tuple_init(field_name_hash_f hash);
+tuple_init(field_name_hash_f hash, functional_key_extractor functional_key_get);
 
 /** Cleanup tuple library */
 void
@@ -729,6 +737,7 @@ tuple_field_raw_by_part(struct tuple_format *format, const char *data,
 			const uint32_t *field_map,
 			struct key_part *part, int multikey_idx)
 {
+	assert(part->functional_fid == 0);
 	if (unlikely(part->format_epoch != format->epoch)) {
 		assert(format->epoch != 0);
 		part->format_epoch = format->epoch;
@@ -752,11 +761,37 @@ tuple_field_raw_by_part(struct tuple_format *format, const char *data,
  */
 static inline const char *
 tuple_field_by_part(struct tuple *tuple, struct key_part *part,
-		    int multikey_idx)
+		    int multikey_idx, bool is_functional)
 {
-	return tuple_field_raw_by_part(tuple_format(tuple), tuple_data(tuple),
-				       tuple_field_map(tuple), part,
-				       multikey_idx);
+	if (is_functional && part->functional_fid > 0) {
+		uint32_t key_count, *key_map;
+		const char *key =
+			box_functional_key_get(tuple, part->functional_fid,
+						&key_count, &key_map);
+		if (multikey_idx != MULTIKEY_NONE && multikey_idx > 0) {
+			if (unlikely((uint32_t) multikey_idx > key_count))
+				return NULL;
+#ifndef FUNCTIONAL_KEY_HASH_IS_DISABLED
+			key += key_map[multikey_idx];
+#else
+			for (int k = 0; k < multikey_idx; k++)
+				mp_next(&key);
+#endif /* FUNCTIONAL_KEY_HASH_IS_DISABLED */
+		}
+		assert(mp_typeof(*key) == MP_ARRAY);
+		uint32_t part_count = mp_decode_array(&key);
+		if (unlikely(part->fieldno >= part_count))
+			return NULL;
+		for (uint32_t k = 0; k < part->fieldno; k++)
+			mp_next(&key);
+		return key;
+	} else {
+		assert(part->functional_fid == 0);
+		return tuple_field_raw_by_part(tuple_format(tuple),
+					tuple_data(tuple),
+					tuple_field_map(tuple), part,
+					multikey_idx);
+	}
 }
 
 /**
@@ -782,8 +817,17 @@ tuple_raw_multikey_count(struct tuple_format *format, const char *data,
 static inline uint32_t
 tuple_multikey_count(struct tuple *tuple, struct key_def *key_def)
 {
-	return tuple_raw_multikey_count(tuple_format(tuple), tuple_data(tuple),
+	if (key_def->functional_fid > 0) {
+		assert(key_def->is_multikey);
+		uint32_t key_count, *key_map;
+		(void)box_functional_key_get(tuple, key_def->functional_fid,
+					     &key_count, &key_map);
+		return key_count;
+	} else {
+		return tuple_raw_multikey_count(tuple_format(tuple),
+					tuple_data(tuple),
 					tuple_field_map(tuple), key_def);
+	}
 }
 
 /**

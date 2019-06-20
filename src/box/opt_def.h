@@ -47,7 +47,7 @@ enum opt_type {
 	OPT_STR,	/* char[] */
 	OPT_STRPTR,	/* char*  */
 	OPT_ENUM,	/* enum */
-	OPT_ARRAY,	/* array */
+	OPT_OPTS,	/* opts */
 	OPT_LEGACY,	/* any type, skipped */
 	opt_type_MAX,
 };
@@ -63,19 +63,19 @@ extern const char *opt_type_strs[];
 typedef int64_t (*opt_def_to_enum_cb)(const char *str, uint32_t len);
 
 /**
- * Decode MsgPack array callback.
- * All memory allocations returned by opt_def_to_array_cb with opt
+ * Decode MsgPack map callback.
+ * All memory allocations returned by opt_def_to_map_cb with opt
  * [out] argument should be managed manually.
  * @param str encoded data pointer (next to MsgPack ARRAY header).
- * @param len array length (items count).
+ * @param len map length (items count).
  * @param [out] opt pointer to store resulting value.
  * @param errcode Code of error to set if something is wrong.
  * @param field_no Field number of an option in a parent element.
  * @retval 0 on success.
  * @retval -1 on error.
  */
-typedef int (*opt_def_to_array_cb)(const char **str, uint32_t len, char *opt,
-				   uint32_t errcode, uint32_t field_no);
+typedef int (*opt_def_to_opts_cb)(const char **map, char *opt,
+				  uint32_t errcode, uint32_t field_no);
 
 struct opt_def {
 	const char *name;
@@ -90,7 +90,7 @@ struct opt_def {
 	/** MsgPack data decode callbacks. */
 	union {
 		opt_def_to_enum_cb to_enum;
-		opt_def_to_array_cb to_array;
+		opt_def_to_opts_cb to_opts;
 	};
 };
 
@@ -103,9 +103,9 @@ struct opt_def {
 	  sizeof(enum enum_name), enum_name##_strs, enum_name##_MAX, \
 	  {(void *)to_enum} }
 
-#define OPT_DEF_ARRAY(key, opts, field, to_array) \
-	 { key, OPT_ARRAY, offsetof(opts, field), sizeof(((opts *)0)->field), \
-	   NULL, 0, NULL, 0, {(void *)to_array} }
+#define OPT_DEF_OPTS(key, opts, field, to_opts) \
+	 { key, OPT_OPTS, offsetof(opts, field), sizeof(((opts *)0)->field), \
+	   NULL, 0, NULL, 0, {(void *)to_opts} }
 
 #define OPT_DEF_LEGACY(key) \
 	{ key, OPT_LEGACY, 0, 0, NULL, 0, NULL, 0, {NULL} }

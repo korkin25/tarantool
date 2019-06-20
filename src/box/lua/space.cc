@@ -335,6 +335,20 @@ lbox_fillspace(struct lua_State *L, struct space *space, int i)
 			lua_setfield(L, -2, "dimension");
 		}
 
+		if (index_opts->functional_def != NULL) {
+			lua_pushstring(L, "functional");
+			lua_newtable(L);
+
+			lua_pushnumber(L, index_opts->functional_def->fid);
+			lua_setfield(L, -2, "fid");
+
+			lua_pushboolean(L,
+				index_opts->functional_def->is_multikey);
+			lua_setfield(L, -2, "is_multikey");
+
+			lua_settable(L, -3);
+		}
+
 		lua_pushstring(L, index_type_strs[index_def->type]);
 		lua_setfield(L, -2, "type");
 

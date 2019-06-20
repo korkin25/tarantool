@@ -163,6 +163,8 @@ struct index_opts {
 	 * filled after running ANALYZE command.
 	 */
 	struct index_stat *stat;
+	/** Functional index definition descriptor. */
+	struct functional_def *functional_def;
 };
 
 extern const struct index_opts index_opts_default;
@@ -183,8 +185,24 @@ index_opts_create(struct index_opts *opts)
 static inline void
 index_opts_destroy(struct index_opts *opts)
 {
+	free(opts->functional_def);
 	free(opts->stat);
 	TRASH(opts);
+}
+
+static inline int
+functional_def_cmp(const struct functional_def *o1,
+		   const struct functional_def *o2)
+{
+	if (o1 == NULL && o2 == NULL)
+		return 0;
+	if (o1 == NULL || o2 == NULL)
+		return (int)(o1 - o2);
+	if (o1->fid != o2->fid)
+		return o1->fid - o2->fid;
+	if (o1->is_multikey != o2->is_multikey)
+		return o1->is_multikey - o2->is_multikey;
+	return 0;
 }
 
 static inline int
@@ -207,6 +225,8 @@ index_opts_cmp(const struct index_opts *o1, const struct index_opts *o2)
 		return o1->run_size_ratio < o2->run_size_ratio ? -1 : 1;
 	if (o1->bloom_fpr != o2->bloom_fpr)
 		return o1->bloom_fpr < o2->bloom_fpr ? -1 : 1;
+	if (functional_def_cmp(o1->functional_def, o2->functional_def) != 0)
+		return functional_def_cmp(o1->functional_def, o2->functional_def);
 	return 0;
 }
 

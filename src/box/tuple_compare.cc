@@ -446,13 +446,14 @@ tuple_compare_field_with_type(const char *field_a, enum mp_type a_type,
 }
 
 template<bool is_nullable, bool has_optional_parts, bool has_json_paths,
-	 bool is_multikey>
+	 bool is_multikey, bool is_functional>
 static inline int
 tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 		       struct tuple *tuple_b, hint_t tuple_b_hint,
 		       struct key_def *key_def)
 {
 	assert(has_json_paths == key_def->has_json_paths);
+	assert(is_functional == key_def->functional_fid > 0);
 	assert(!has_optional_parts || is_nullable);
 	assert(is_nullable == key_def->is_nullable);
 	assert(has_optional_parts == key_def->has_optional_parts);
@@ -466,7 +467,7 @@ tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 	const char *tuple_a_raw = tuple_data(tuple_a);
 	const char *tuple_b_raw = tuple_data(tuple_b);
 	if (key_def->part_count == 1 && part->fieldno == 0 &&
-	    (!has_json_paths || part->path == NULL)) {
+	    (!has_json_paths || part->path == NULL) && !is_functional) {
 		/*
 		 * First field can not be optional - empty tuples
 		 * can not exist.
@@ -503,20 +504,24 @@ tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 		end = part + key_def->part_count;
 
 	for (; part < end; part++) {
-		if (is_multikey) {
-			field_a = tuple_field_raw_by_part(format_a, tuple_a_raw,
-							  field_map_a, part,
-							  (int)tuple_a_hint);
-			field_b = tuple_field_raw_by_part(format_b, tuple_b_raw,
-							  field_map_b, part,
-							  (int)tuple_b_hint);
+		if (is_functional) {
+			field_a = tuple_field_by_part(tuple_a, part,
+					is_multikey ?
+					(int)tuple_a_hint : MULTIKEY_NONE,
+					true);
+			field_b = tuple_field_by_part(tuple_b, part,
+					is_multikey ?
+					(int)tuple_b_hint : MULTIKEY_NONE,
+					true);
 		} else if (has_json_paths) {
 			field_a = tuple_field_raw_by_part(format_a, tuple_a_raw,
-							  field_map_a, part,
-							  MULTIKEY_NONE);
+					field_map_a, part,
+					is_multikey ?
+					(int)tuple_a_hint : MULTIKEY_NONE);
 			field_b = tuple_field_raw_by_part(format_b, tuple_b_raw,
-							  field_map_b, part,
-							  MULTIKEY_NONE);
+					field_map_b, part,
+					is_multikey ?
+					(int)tuple_b_hint : MULTIKEY_NONE);
 		} else {
 			field_a = tuple_field_raw(format_a, tuple_a_raw,
 						  field_map_a, part->fieldno);
@@ -569,20 +574,24 @@ tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 	 */
 	end = key_def->parts + key_def->part_count;
 	for (; part < end; ++part) {
-		if (is_multikey) {
-			field_a = tuple_field_raw_by_part(format_a, tuple_a_raw,
-							  field_map_a, part,
-							  (int)tuple_a_hint);
-			field_b = tuple_field_raw_by_part(format_b, tuple_b_raw,
-							  field_map_b, part,
-							  (int)tuple_b_hint);
+		if (is_functional) {
+			field_a = tuple_field_by_part(tuple_a, part,
+					is_multikey ?
+					(int)tuple_a_hint : MULTIKEY_NONE,
+					true);
+			field_b = tuple_field_by_part(tuple_b, part,
+					is_multikey ?
+					(int)tuple_b_hint : MULTIKEY_NONE,
+					true);
 		} else if (has_json_paths) {
 			field_a = tuple_field_raw_by_part(format_a, tuple_a_raw,
-							  field_map_a, part,
-							  MULTIKEY_NONE);
+					field_map_a, part,
+					is_multikey ?
+					(int)tuple_a_hint : MULTIKEY_NONE);
 			field_b = tuple_field_raw_by_part(format_b, tuple_b_raw,
-							  field_map_b, part,
-							  MULTIKEY_NONE);
+					field_map_b, part,
+					is_multikey ?
+					(int)tuple_b_hint : MULTIKEY_NONE);
 		} else {
 			field_a = tuple_field_raw(format_a, tuple_a_raw,
 						  field_map_a, part->fieldno);
@@ -603,13 +612,14 @@ tuple_compare_slowpath(struct tuple *tuple_a, hint_t tuple_a_hint,
 }
 
 template<bool is_nullable, bool has_optional_parts, bool has_json_paths,
-	 bool is_multikey>
+	 bool is_multikey, bool is_functional>
 static inline int
 tuple_compare_with_key_slowpath(struct tuple *tuple, hint_t tuple_hint,
 				const char *key, uint32_t part_count,
 				hint_t key_hint, struct key_def *key_def)
 {
 	assert(has_json_paths == key_def->has_json_paths);
+	assert(is_functional == key_def->functional_fid > 0);
 	assert(!has_optional_parts || is_nullable);
 	assert(is_nullable == key_def->is_nullable);
 	assert(has_optional_parts == key_def->has_optional_parts);
@@ -628,14 +638,16 @@ tuple_compare_with_key_slowpath(struct tuple *tuple, hint_t tuple_hint,
 	enum mp_type a_type, b_type;
 	if (likely(part_count == 1)) {
 		const char *field;
-		if (is_multikey) {
-			field = tuple_field_raw_by_part(format, tuple_raw,
-							field_map, part,
-							(int)tuple_hint);
+		if (is_functional) {
+			field = tuple_field_by_part(tuple, part,
+					is_multikey ?
+					(int)tuple_hint : MULTIKEY_NONE,
+					true);
 		} else if (has_json_paths) {
 			field = tuple_field_raw_by_part(format, tuple_raw,
-							field_map, part,
-							MULTIKEY_NONE);
+					field_map, part,
+					is_multikey ?
+					(int)tuple_hint : MULTIKEY_NONE);
 		} else {
 			field = tuple_field_raw(format, tuple_raw, field_map,
 						part->fieldno);
@@ -663,14 +675,16 @@ tuple_compare_with_key_slowpath(struct tuple *tuple, hint_t tuple_hint,
 	struct key_part *end = part + part_count;
 	for (; part < end; ++part, mp_next(&key)) {
 		const char *field;
-		if (is_multikey) {
-			field = tuple_field_raw_by_part(format, tuple_raw,
-							field_map, part,
-							(int)tuple_hint);
+		if (is_functional) {
+			field = tuple_field_by_part(tuple, part,
+					is_multikey ?
+					(int)tuple_hint : MULTIKEY_NONE,
+					true);
 		} else if (has_json_paths) {
 			field = tuple_field_raw_by_part(format, tuple_raw,
-							field_map, part,
-							MULTIKEY_NONE);
+					field_map, part,
+					is_multikey ?
+					(int)tuple_hint : MULTIKEY_NONE);
 		} else {
 			field = tuple_field_raw(format, tuple_raw, field_map,
 						part->fieldno);
@@ -1565,13 +1579,13 @@ key_hint(const char *key, uint32_t part_count, struct key_def *key_def)
 	return field_hint<type, is_nullable>(key, key_def->parts->coll);
 }
 
-template <enum field_type type, bool is_nullable>
+template <enum field_type type, bool is_nullable, bool is_functional>
 static hint_t
 tuple_hint(struct tuple *tuple, struct key_def *key_def)
 {
 	assert(!key_def->is_multikey);
 	const char *field = tuple_field_by_part(tuple, key_def->parts,
-						MULTIKEY_NONE);
+						MULTIKEY_NONE, is_functional);
 	if (is_nullable && field == NULL)
 		return hint_nil();
 	return field_hint<type, is_nullable>(field, key_def->parts->coll);
@@ -1611,7 +1625,10 @@ static void
 key_def_set_hint_func(struct key_def *def)
 {
 	def->key_hint = key_hint<type, is_nullable>;
-	def->tuple_hint = tuple_hint<type, is_nullable>;
+	if (def->functional_fid > 0)
+		def->tuple_hint = tuple_hint<type, is_nullable, true>;
+	else
+		def->tuple_hint = tuple_hint<type, is_nullable, false>;
 }
 
 template<enum field_type type>
@@ -1703,13 +1720,14 @@ key_def_set_compare_func_fast(struct key_def *def)
 	if (cmp == NULL) {
 		cmp = is_sequential ?
 			tuple_compare_sequential<false, false> :
-			tuple_compare_slowpath<false, false, false, false>;
+			tuple_compare_slowpath<false, false, false,
+					       false, false>;
 	}
 	if (cmp_wk == NULL) {
 		cmp_wk = is_sequential ?
 			tuple_compare_with_key_sequential<false, false> :
 			tuple_compare_with_key_slowpath<false, false,
-							false, false>;
+							false, false, false>;
 	}
 
 	def->tuple_compare = cmp;
@@ -1728,9 +1746,11 @@ key_def_set_compare_func_plain(struct key_def *def)
 					<is_nullable, has_optional_parts>;
 	} else {
 		def->tuple_compare = tuple_compare_slowpath
-				<is_nullable, has_optional_parts, false, false>;
+				<is_nullable, has_optional_parts, false,
+				 false, false>;
 		def->tuple_compare_with_key = tuple_compare_with_key_slowpath
-				<is_nullable, has_optional_parts, false, false>;
+				<is_nullable, has_optional_parts, false,
+				 false, false>;
 	}
 }
 
@@ -1741,14 +1761,36 @@ key_def_set_compare_func_json(struct key_def *def)
 	assert(def->has_json_paths);
 	if (def->is_multikey) {
 		def->tuple_compare = tuple_compare_slowpath
-				<is_nullable, has_optional_parts, true, true>;
+				<is_nullable, has_optional_parts, true,
+				 true, false>;
 		def->tuple_compare_with_key = tuple_compare_with_key_slowpath
-				<is_nullable, has_optional_parts, true, true>;
+				<is_nullable, has_optional_parts, true,
+				 true, false>;
 	} else {
 		def->tuple_compare = tuple_compare_slowpath
-				<is_nullable, has_optional_parts, true, false>;
+				<is_nullable, has_optional_parts, true,
+				 false, false>;
 		def->tuple_compare_with_key = tuple_compare_with_key_slowpath
-				<is_nullable, has_optional_parts, true, false>;
+				<is_nullable, has_optional_parts, true,
+				 false, false>;
+	}
+}
+
+template<bool is_nullable>
+static void
+key_def_set_compare_func_functional(struct key_def *def)
+{
+	assert(def->functional_fid > 0);
+	if (def->is_multikey) {
+		def->tuple_compare = tuple_compare_slowpath
+				<is_nullable, false, false, true, true>;
+		def->tuple_compare_with_key = tuple_compare_with_key_slowpath
+				<is_nullable, false, false, true, true>;
+	} else {
+		def->tuple_compare = tuple_compare_slowpath
+				<is_nullable, false, false, false, true>;
+		def->tuple_compare_with_key = tuple_compare_with_key_slowpath
+				<is_nullable, false, false, false, true>;
 	}
 }
 
@@ -1756,9 +1798,10 @@ void
 key_def_set_compare_func(struct key_def *def)
 {
 	if (!key_def_has_collation(def) &&
-	    !def->is_nullable && !def->has_json_paths) {
+	    !def->is_nullable && !def->has_json_paths &&
+	    def->functional_fid == 0) {
 		key_def_set_compare_func_fast(def);
-	} else if (!def->has_json_paths) {
+	} else if (!def->has_json_paths && def->functional_fid == 0) {
 		if (def->is_nullable && def->has_optional_parts) {
 			key_def_set_compare_func_plain<true, true>(def);
 		} else if (def->is_nullable && !def->has_optional_parts) {
@@ -1767,7 +1810,16 @@ key_def_set_compare_func(struct key_def *def)
 			assert(!def->is_nullable && !def->has_optional_parts);
 			key_def_set_compare_func_plain<false, false>(def);
 		}
+	} else if (def->functional_fid > 0) {
+		assert(!def->has_json_paths);
+		assert(!def->has_optional_parts);
+		if (def->is_nullable) {
+			key_def_set_compare_func_functional<true>(def);
+		} else {
+			key_def_set_compare_func_functional<false>(def);
+		}
 	} else {
+		assert(def->has_json_paths);
 		if (def->is_nullable && def->has_optional_parts) {
 			key_def_set_compare_func_json<true, true>(def);
 		} else if (def->is_nullable && !def->has_optional_parts) {

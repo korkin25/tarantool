@@ -153,3 +153,12 @@ s = box.schema.space.create('test')
 _ = s:create_index('primary')
 _ = s:create_index('bitset', {type = 'bitset', parts = {{'[2][*]', 'unsigned'}}})
 s:drop()
+
+-- Bitset index cannot be functional.
+s = box.schema.space.create('withdata')
+lua_code = [[function(tuple) return tuple[1] + tuple[2] end]]
+box.schema.func.create('sum', {body = lua_code, is_deterministic = true, is_sandboxed = true})
+_ = s:create_index('pk')
+_ = s:create_index('idx', {type = 'bitset', functional = {fid = box.func.sum.id}, parts = {{1, 'unsigned'}}})
+s:drop()
+box.schema.func.drop('sum')

@@ -73,6 +73,8 @@ struct tuple *box_tuple_last;
 
 struct tuple_format *tuple_format_runtime;
 
+functional_key_extractor box_functional_key_get = NULL;
+
 static void
 runtime_tuple_delete(struct tuple_format *format, struct tuple *tuple);
 
@@ -139,7 +141,8 @@ runtime_tuple_delete(struct tuple_format *format, struct tuple *tuple)
 int
 tuple_validate_raw(struct tuple_format *format, const char *tuple)
 {
-	if (tuple_format_field_count(format) == 0)
+	if (tuple_format_field_count(format) == 0 &&
+	    rlist_empty(&format->functional_handle))
 		return 0; /* Nothing to check */
 
 	struct region *region = &fiber()->gc;
@@ -305,7 +308,7 @@ tuple_unref_slow(struct tuple *tuple)
 /* }}} Bigref */
 
 int
-tuple_init(field_name_hash_f hash)
+tuple_init(field_name_hash_f hash, functional_key_extractor functional_key_get)
 {
 	if (tuple_format_init() != 0)
 		return -1;
@@ -342,6 +345,8 @@ tuple_init(field_name_hash_f hash)
 
 	if (func_cache_init() != 0)
 		return -1;
+
+	box_functional_key_get = functional_key_get;
 
 	return 0;
 }

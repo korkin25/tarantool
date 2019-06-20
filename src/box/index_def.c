@@ -50,7 +50,12 @@ const struct index_opts index_opts_default = {
 	/* .bloom_fpr           = */ 0.05,
 	/* .lsn                 = */ 0,
 	/* .stat                = */ NULL,
+	/* .functional_def      = */ NULL,
 };
+
+int
+functional_def_decode(const char **map, char *opt, uint32_t errcode,
+		      uint32_t field_no);
 
 const struct opt_def index_opts_reg[] = {
 	OPT_DEF("unique", OPT_BOOL, struct index_opts, is_unique),
@@ -63,6 +68,8 @@ const struct opt_def index_opts_reg[] = {
 	OPT_DEF("run_size_ratio", OPT_FLOAT, struct index_opts, run_size_ratio),
 	OPT_DEF("bloom_fpr", OPT_FLOAT, struct index_opts, bloom_fpr),
 	OPT_DEF("lsn", OPT_INT64, struct index_opts, lsn),
+	OPT_DEF_OPTS("functional", struct index_opts, functional_def,
+		     functional_def_decode),
 	OPT_DEF_LEGACY("sql"),
 	OPT_END,
 };
@@ -147,6 +154,18 @@ index_def_dup(const struct index_def *def)
 			index_def_delete(dup);
 			return NULL;
 		}
+	}
+	if (def->opts.functional_def != NULL) {
+		dup->opts.functional_def =
+			malloc(sizeof(*dup->opts.functional_def));
+		if (dup->opts.functional_def == NULL) {
+			diag_set(OutOfMemory, sizeof(*dup->opts.functional_def),
+				"malloc", "functional_def");
+			index_def_delete(dup);
+			return NULL;
+		}
+		memcpy(dup->opts.functional_def, def->opts.functional_def,
+			sizeof(*def->opts.functional_def));
 	}
 	return dup;
 }
@@ -296,6 +315,11 @@ index_def_is_valid(struct index_def *index_def, const char *space_name)
 			 space_name, "primary key cannot be multikey");
 		return false;
 	}
+	if (index_def->iid == 0 && index_def->key_def->functional_fid > 0) {
+		diag_set(ClientError, ER_MODIFY_INDEX, index_def->name,
+			space_name, "primary key cannot be functional");
+		return false;
+	}
 	for (uint32_t i = 0; i < index_def->key_def->part_count; i++) {
 		assert(index_def->key_def->parts[i].type < field_type_MAX);
 		if (index_def->key_def->parts[i].fieldno > BOX_INDEX_FIELD_MAX) {
@@ -322,4 +346,33 @@ index_def_is_valid(struct index_def *index_def, const char *space_name)
 		}
 	}
 	return true;
+}
+
+static const struct opt_def functional_def_reg[] = {
+	OPT_DEF("fid", OPT_UINT32, struct functional_def, fid),
+	OPT_DEF("is_multikey", OPT_BOOL, struct functional_def,
+		is_multikey),
+	OPT_END,
+};
+
+int
+functional_def_decode(const char **map, char *opt, uint32_t errcode,
+		      uint32_t field_no)
+{
+	assert(mp_typeof(**map) == MP_MAP);
+	struct functional_def *functional_def = malloc(sizeof(*functional_def));
+	if (functional_def == NULL) {
+		diag_set(OutOfMemory, sizeof(*functional_def), "malloc",
+			 "functional_def");
+		return -1;
+	}
+	functional_def->fid = 0;
+	functional_def->is_multikey = false;
+	if (opts_decode(functional_def, functional_def_reg, map,
+			errcode, field_no, NULL) != 0) {
+		free(functional_def);
+		return -1;
+	}
+	*(struct functional_def **)opt = functional_def;
+	return 0;
 }

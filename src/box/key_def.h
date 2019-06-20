@@ -75,6 +75,8 @@ struct key_part_def {
 
 extern const struct key_part_def key_part_def_default;
 
+struct func;
+
 /** Descriptor of a single part in a multipart key. */
 struct key_part {
 	/** Tuple field index for this part */
@@ -98,6 +100,11 @@ struct key_part {
 	char *path;
 	/** The length of JSON path. */
 	uint32_t path_len;
+	/**
+	 * The functional index extractor routine identifier.
+	 * != 0 iff this is a functional index key definition.
+	 */
+	uint32_t functional_fid;
 	/**
 	 * Epoch of the tuple format the offset slot cached in
 	 * this part is valid for, see tuple_format::epoch.
@@ -166,6 +173,18 @@ typedef hint_t (*tuple_hint_t)(struct tuple *tuple,
 typedef hint_t (*key_hint_t)(const char *key, uint32_t part_count,
 			     struct key_def *key_def);
 
+struct functional_def {
+	/**
+	 * Index of the function used for functional index.
+	 * The value > 0 for functional index, and 0 otherwise.
+	 */
+	uint32_t fid;
+	/**
+	 * Whether this functional index is multikey.
+	 */
+	bool is_multikey;
+};
+
 /* Definition of a multipart key. */
 struct key_def {
 	/** @see tuple_compare() */
@@ -233,6 +252,12 @@ struct key_def {
 	 * undefined otherwise.
 	*/
 	uint32_t multikey_fieldno;
+	/**
+	 * Identifier of the functional index extractor
+	 * routine.
+	 * != 0 iff this is functional index key definition.
+	 */
+	uint32_t functional_fid;
 	/** The size of the 'parts' array. */
 	uint32_t part_count;
 	/** Description of parts of a multipart index. */
@@ -326,11 +351,13 @@ key_def_sizeof(uint32_t part_count, uint32_t path_pool_size)
 }
 
 /**
- * Allocate a new key_def with the given part count
- * and initialize its parts.
+ * Allocate a new key_def with given valid functional index
+ * definition (or NULL) and the given part count and
+ * initialize its parts.
  */
 struct key_def *
-key_def_new(const struct key_part_def *parts, uint32_t part_count);
+key_def_new(const struct key_part_def *parts, uint32_t part_count,
+	    struct functional_def *functional);
 
 /**
  * Dump part definitions of the given key def.

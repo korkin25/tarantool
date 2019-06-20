@@ -143,7 +143,7 @@ main()
 
 	memory_init();
 	fiber_init(fiber_c_invoke);
-	tuple_init(NULL);
+	tuple_init(NULL, NULL);
 
 	tuple_end = mp_encode_array(tuple_end, 1);
 	tuple_end = mp_encode_uint(tuple_end, 2);

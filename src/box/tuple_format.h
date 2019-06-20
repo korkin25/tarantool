@@ -67,6 +67,32 @@ struct tuple;
 struct tuple_extra;
 struct tuple_format;
 struct coll;
+struct func;
+
+/**
+ * A functional handle is a tuple_format extention used when
+ * functional index key is defined. The functional handle
+ * represents a single functional index reference and allows
+ * to perform a validation of the functional index extracted key.
+ */
+struct functional_handle {
+	struct rlist link;
+	/**
+	 * A functional index extractor routine pointer.
+	 * The functional_handle takes a reference for this
+	 * function object when initialized.
+	 * This field may be NULL during recovery, becuase
+	 * the functions may be unregistered during format
+	 * construction. Therefore, the initialization of
+	 * functional_handle is delayed.
+	 */
+	struct func *func;
+	/**
+	 * The key definition that describe keys produced by
+	 * functional index extractor.
+	*/
+	struct key_def *key_def;
+};
 
 /** Engine-specific tuple format methods. */
 struct tuple_format_vtab {
@@ -248,6 +274,8 @@ struct tuple_format {
 	 * tuple_field::token.
 	 */
 	struct json_tree fields;
+	/** Functional index handle. */
+	struct rlist functional_handle;
 };
 
 /**
@@ -350,6 +378,7 @@ tuple_format_new(struct tuple_format_vtab *vtab, void *engine,
 		 uint32_t space_field_count, uint32_t exact_field_count,
 		 struct tuple_dictionary *dict, bool is_temporary,
 		 bool is_ephemeral);
+
 
 /**
  * Check, if @a format1 can store any tuples of @a format2. For

@@ -30,10 +30,15 @@
  */
 #include "bit/bit.h"
 #include "fiber.h"
+#include "schema.h"
+#include "port.h"
 #include "json/json.h"
 #include "tuple_format.h"
 #include "coll_id_cache.h"
 #include "tt_static.h"
+#include "func.h"
+#include "memtx_engine.h"
+#include "functional_key.h"
 
 #include "third_party/PMurHash.h"
 
@@ -462,6 +467,12 @@ tuple_format_create(struct tuple_format *format, struct key_def * const *keys,
 	/* extract field type info */
 	for (uint16_t key_no = 0; key_no < key_count; ++key_no) {
 		const struct key_def *key_def = keys[key_no];
+		/*
+		 * Functional key definitions are not the part
+		 * of the space format.
+		 */
+		if (key_def->functional_fid > 0)
+			continue;
 		bool is_sequential = key_def_is_sequential(key_def);
 		const struct key_part *part = key_def->parts;
 		const struct key_part *parts_end = part + key_def->part_count;
@@ -605,16 +616,62 @@ tuple_format_destroy_fields(struct tuple_format *format)
 	json_tree_destroy(&format->fields);
 }
 
+static struct functional_handle *
+functional_handle_new(const struct key_def *key_def)
+{
+	assert(key_def->functional_fid > 0);
+	struct functional_handle *handle = malloc(sizeof(*handle));
+	if (handle == NULL) {
+		diag_set(OutOfMemory, sizeof(*handle), "malloc", "handle");
+		return NULL;
+	}
+	handle->key_def = key_def_dup(key_def);
+	if (handle->key_def == NULL) {
+		free(handle);
+		return NULL;
+	}
+	/**
+	 * The function pointer initialization may be delayed
+	 * during recovery because functional index extractor
+	 * didn't exists when _index space had been created.
+	 */
+	handle->func = func_by_id(key_def->functional_fid);
+	if (handle->func != NULL)
+		func_ref(handle->func);
+	rlist_create(&handle->link);
+	return handle;
+}
+
+static void
+functional_handle_delete(struct functional_handle *handle)
+{
+	if (handle->func != NULL)
+		func_unref(handle->func);
+	key_def_delete(handle->key_def);
+	free(handle);
+}
+
 static struct tuple_format *
 tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 		   uint32_t space_field_count, struct tuple_dictionary *dict)
 {
+	struct tuple_format *format = NULL;
 	/* Size of area to store JSON paths data. */
 	uint32_t path_pool_size = 0;
 	uint32_t index_field_count = 0;
 	/* find max max field no */
+	struct rlist functional_handle;
+	rlist_create(&functional_handle);
 	for (uint16_t key_no = 0; key_no < key_count; ++key_no) {
 		const struct key_def *key_def = keys[key_no];
+		if (key_def->functional_fid > 0) {
+			struct functional_handle *handle =
+				functional_handle_new(key_def);
+			if (handle == NULL)
+				goto error;
+			rlist_add(&functional_handle, &handle->link);
+			continue;
+		}
 		const struct key_part *part = key_def->parts;
 		const struct key_part *pend = part + key_def->part_count;
 		for (; part < pend; part++) {
@@ -626,17 +683,16 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 	uint32_t field_count = MAX(space_field_count, index_field_count);
 
 	uint32_t allocation_size = sizeof(struct tuple_format) + path_pool_size;
-	struct tuple_format *format = malloc(allocation_size);
+	format = malloc(allocation_size);
 	if (format == NULL) {
 		diag_set(OutOfMemory, allocation_size, "malloc",
 			 "tuple format");
-		return NULL;
+		goto error;
 	}
 	if (json_tree_create(&format->fields) != 0) {
 		diag_set(OutOfMemory, 0, "json_lexer_create",
 			 "tuple field tree");
-		free(format);
-		return NULL;
+		goto error;
 	}
 	for (uint32_t fieldno = 0; fieldno < field_count; fieldno++) {
 		struct tuple_field *field = tuple_field_new();
@@ -662,6 +718,8 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 		format->dict = dict;
 		tuple_dictionary_ref(dict);
 	}
+	rlist_create(&format->functional_handle);
+	rlist_swap(&format->functional_handle, &functional_handle);
 	format->total_field_count = field_count;
 	format->required_fields = NULL;
 	format->fields_depth = 1;
@@ -672,7 +730,10 @@ tuple_format_alloc(struct key_def * const *keys, uint16_t key_count,
 	format->min_field_count = 0;
 	format->epoch = 0;
 	return format;
-error:
+error:;
+	struct functional_handle *handle, *tmp;
+	rlist_foreach_entry_safe(handle, &functional_handle, link, tmp)
+		functional_handle_delete(handle);
 	tuple_format_destroy_fields(format);
 	free(format);
 	return NULL;
@@ -683,6 +744,9 @@ static inline void
 tuple_format_destroy(struct tuple_format *format)
 {
 	free(format->required_fields);
+	struct functional_handle *handle, *tmp;
+	rlist_foreach_entry_safe(handle, &format->functional_handle, link, tmp)
+		functional_handle_delete(handle);
 	tuple_format_destroy_fields(format);
 	tuple_dictionary_unref(format->dict);
 }

@@ -45,7 +45,7 @@ const char *opt_type_strs[] = {
 	/* [OPT_STR]	= */ "string",
 	/* [OPT_STRPTR] = */ "string",
 	/* [OPT_ENUM]   = */ "enum",
-	/* [OPT_ARRAY]  = */ "array",
+	/* [OPT_OPTS]   = */ "map",
 	/* [OPT_LEGACY] = */ "legacy",
 };
 
@@ -139,12 +139,11 @@ opt_set(void *opts, const struct opt_def *def, const char **val,
 			unreachable();
 		};
 		break;
-	case OPT_ARRAY:
-		if (mp_typeof(**val) != MP_ARRAY)
+	case OPT_OPTS:
+		if (mp_typeof(**val) != MP_MAP)
 			goto type_mismatch_err;
-		ival = mp_decode_array(val);
-		assert(def->to_array != NULL);
-		if (def->to_array(val, ival, opt, errcode, field_no) != 0)
+		assert(def->to_opts != NULL);
+		if (def->to_opts(val, opt, errcode, field_no) != 0)
 			return -1;
 		break;
 	case OPT_LEGACY:

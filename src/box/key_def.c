@@ -38,6 +38,8 @@
 #include "schema_def.h"
 #include "coll_id_cache.h"
 #include "small/region.h"
+#include "func_cache.h"
+#include "func.h"
 #include "coll/coll.h"
 
 const char *sort_order_strs[] = { "asc", "desc", "undef" };
@@ -222,7 +224,7 @@ key_def_set_part(struct key_def *def, uint32_t part_no, uint32_t fieldno,
 		 struct coll *coll, uint32_t coll_id,
 		 enum sort_order sort_order, const char *path,
 		 uint32_t path_len, char **path_pool, int32_t offset_slot,
-		 uint64_t format_epoch)
+		 uint64_t format_epoch, uint32_t functional_fid)
 {
 	assert(part_no < def->part_count);
 	assert(type < field_type_MAX);
@@ -236,12 +238,14 @@ key_def_set_part(struct key_def *def, uint32_t part_no, uint32_t fieldno,
 	def->parts[part_no].sort_order = sort_order;
 	def->parts[part_no].offset_slot_cache = offset_slot;
 	def->parts[part_no].format_epoch = format_epoch;
+	def->parts[part_no].functional_fid = functional_fid;
 	column_mask_set_fieldno(&def->column_mask, fieldno);
 	return key_def_set_part_path(def, part_no, path, path_len, path_pool);
 }
 
 struct key_def *
-key_def_new(const struct key_part_def *parts, uint32_t part_count)
+key_def_new(const struct key_part_def *parts, uint32_t part_count,
+	    struct functional_def *functional_def)
 {
 	size_t sz = 0;
 	for (uint32_t i = 0; i < part_count; i++)
@@ -255,6 +259,29 @@ key_def_new(const struct key_part_def *parts, uint32_t part_count)
 
 	def->part_count = part_count;
 	def->unique_part_count = part_count;
+	struct func *func = NULL;
+	if (functional_def != NULL) {
+		/**
+		 * Ensure that a given function definition is a
+		 * valid functional index extractor routine: only
+		 * a persistent deterministic sandboxed Lua
+		 * function may be used in functional index
+		 * definition.
+		 * Function may be not registered yet during
+		 * recovery.
+		 */
+		func = func_by_id(functional_def->fid);
+		if (func != NULL && (func->def->language != FUNC_LANGUAGE_LUA ||
+		    func->def->body == NULL || !func->def->is_deterministic ||
+		    !func->def->is_sandboxed)) {
+			diag_set(ClientError, ER_WRONG_INDEX_OPTIONS, 0,
+				  "referenced function doesn't satisfy "
+				  "functional index constraints");
+			goto error;
+		}
+		def->functional_fid = functional_def->fid;
+		def->is_multikey = functional_def->is_multikey;
+	}
 
 	/* A pointer to the JSON paths data in the new key_def. */
 	char *path_pool = (char *)def + key_def_sizeof(part_count, 0);
@@ -266,8 +293,7 @@ key_def_new(const struct key_part_def *parts, uint32_t part_count)
 			if (coll_id == NULL) {
 				diag_set(ClientError, ER_WRONG_INDEX_OPTIONS,
 					 i + 1, "collation was not found by ID");
-				key_def_delete(def);
-				return NULL;
+				goto error;
 			}
 			coll = coll_id->coll;
 		}
@@ -276,14 +302,24 @@ key_def_new(const struct key_part_def *parts, uint32_t part_count)
 				     part->nullable_action, coll, part->coll_id,
 				     part->sort_order, part->path, path_len,
 				     &path_pool, TUPLE_OFFSET_SLOT_NIL,
-				     0) != 0) {
-			key_def_delete(def);
-			return NULL;
+				     0, def->functional_fid) != 0) {
+			goto error;
+		}
+	}
+	if (functional_def != NULL) {
+		if (!key_def_is_sequential(def) || parts->fieldno != 0 ||
+		    def->has_json_paths) {
+			diag_set(ClientError, ER_WRONG_INDEX_OPTIONS,
+				 0, "invalid functional key definition");
+			goto error;
 		}
 	}
 	assert(path_pool == (char *)def + sz);
 	key_def_set_func(def);
 	return def;
+error:
+	key_def_delete(def);
+	return NULL;
 }
 
 int
@@ -333,7 +369,7 @@ box_key_def_new(uint32_t *fields, uint32_t *types, uint32_t part_count)
 				     (enum field_type)types[item],
 				     ON_CONFLICT_ACTION_DEFAULT, NULL,
 				     COLL_NONE, SORT_ORDER_ASC, NULL, 0, NULL,
-				     TUPLE_OFFSET_SLOT_NIL, 0) != 0) {
+				     TUPLE_OFFSET_SLOT_NIL, 0, 0) != 0) {
 			key_def_delete(key_def);
 			return NULL;
 		}
@@ -681,6 +717,7 @@ key_def_find(const struct key_def *key_def, const struct key_part *to_find)
 	const struct key_part *end = part + key_def->part_count;
 	for (; part != end; part++) {
 		if (part->fieldno == to_find->fieldno &&
+		    part->functional_fid == to_find->functional_fid &&
 		    json_path_cmp(part->path, part->path_len,
 				  to_find->path, to_find->path_len,
 				  TUPLE_INDEX_BASE) == 0)
@@ -708,6 +745,9 @@ static bool
 key_def_can_merge(const struct key_def *key_def,
 		  const struct key_part *to_merge)
 {
+	if (key_def->functional_fid > 0)
+		return true;
+
 	const struct key_part *part = key_def_find(key_def, to_merge);
 	if (part == NULL)
 		return true;
@@ -722,6 +762,7 @@ key_def_can_merge(const struct key_def *key_def,
 struct key_def *
 key_def_merge(const struct key_def *first, const struct key_def *second)
 {
+	assert(second->functional_fid == 0);
 	uint32_t new_part_count = first->part_count + second->part_count;
 	/*
 	 * Find and remove part duplicates, i.e. parts counted
@@ -754,6 +795,7 @@ key_def_merge(const struct key_def *first, const struct key_def *second)
 	new_def->has_optional_parts = first->has_optional_parts ||
 				      second->has_optional_parts;
 	new_def->is_multikey = first->is_multikey || second->is_multikey;
+	new_def->functional_fid = first->functional_fid;
 
 	/* JSON paths data in the new key_def. */
 	char *path_pool = (char *)new_def + key_def_sizeof(new_part_count, 0);
@@ -768,7 +810,8 @@ key_def_merge(const struct key_def *first, const struct key_def *second)
 				     part->coll_id, part->sort_order,
 				     part->path, part->path_len, &path_pool,
 				     part->offset_slot_cache,
-				     part->format_epoch) != 0) {
+				     part->format_epoch,
+				     part->functional_fid) != 0) {
 			key_def_delete(new_def);
 			return NULL;
 		}
@@ -785,7 +828,8 @@ key_def_merge(const struct key_def *first, const struct key_def *second)
 				     part->coll_id, part->sort_order,
 				     part->path, part->path_len, &path_pool,
 				     part->offset_slot_cache,
-				     part->format_epoch) != 0) {
+				     part->format_epoch,
+				     part->functional_fid) != 0) {
 			key_def_delete(new_def);
 			return NULL;
 		}
@@ -826,7 +870,7 @@ key_def_find_pk_in_cmp_def(const struct key_def *cmp_def,
 	}
 
 	/* Finally, allocate the new key definition. */
-	extracted_def = key_def_new(parts, pk_def->part_count);
+	extracted_def = key_def_new(parts, pk_def->part_count, NULL);
 out:
 	region_truncate(region, region_svp);
 	return extracted_def;

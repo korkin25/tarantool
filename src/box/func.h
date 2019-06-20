@@ -82,6 +82,8 @@ struct func {
 	 * Cached runtime access information.
 	 */
 	struct access access[BOX_USER_MAX];
+	/** Reference counter. */
+	uint16_t refs;
 };
 
 /**
@@ -101,6 +103,19 @@ func_new(struct func_def *def);
 
 void
 func_delete(struct func *func);
+
+static inline void
+func_ref(struct func *func)
+{
+	++func->refs;
+}
+
+static inline void
+func_unref(struct func *func)
+{
+	assert(func->refs > 0);
+	--func->refs;
+}
 
 /**
  * Call function with arguments represented with given args.
