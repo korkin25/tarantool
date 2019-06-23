@@ -54,6 +54,8 @@ typedef size_t (*coll_hint_f)(const char *s, size_t s_len, char *buf,
 typedef int32_t (*coll_search_f)(const char *pat, int32_t pat_len, const char *s,
 				 int32_t s_len, struct coll *coll);
 
+// typedef uint8_t * (*coll_get_sort_key)(const char *s, int32_t s_len, int32_t *key_size, struct coll *coll);
+
 struct UCollator;
 
 /** Default universal casemap for case transformations. */
@@ -82,6 +84,8 @@ struct coll {
 	coll_hint_f hint;
 	/** Pattern match function. */
 	coll_search_f search;
+
+	// coll_get_sort_key get_sort_key;
 	/** Reference counter. */
 	int refs;
 	/**

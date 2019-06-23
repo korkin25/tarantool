@@ -39,6 +39,8 @@
 #include <unicode/ucasemap.h>
 #include <unicode/usearch.h>
 #include <unicode/ustring.h>
+#include <unicode/utypes.h>
+#include <unicode/ucol.h>
 #include "tt_static.h"
 
 struct UCaseMap *icu_ucase_default_map = NULL;
@@ -221,6 +223,60 @@ coll_bin_search(const char *pat, int32_t pat_len, const char *s, int32_t s_len,
 
 	return pos;
 }
+
+// static int32_t
+// coll_icu_next_priority(UCollationElements *elements, int32_t *offset, UErrorCode *status)
+// {
+// 	int32_t priority = ucol_next(elements, &status);
+// 	offset += ucol_getOffset(elements);
+// 	return priority;
+// }
+
+// static int32_t
+// coll_bin_next_priority(UCollationElements *elements, int32_t *offset, UErrorCode *status)
+// {
+// 	int32_t priority = ucol_next(elements, &status);
+// 	offset += ucol_getOffset(elements);
+// 	return priority;
+// }
+
+// static uint8_t *
+// coll_icu_get_sort_key(const char *s, int32_t s_len, int32_t *key_size, struct coll *coll)
+// {
+// 	assert(coll->collator != NULL);
+
+// 	UChar *s_buf = (UChar *) region_alloc(&fiber()->gc, s_len);
+// 	s_buf = u_uastrncpy(s_buf, s, s_len);
+
+// 	uint8_t *key_buf = NULL;
+// 	*key_size = ucol_getSortKey(coll->collator, s_buf, s_len, key_buf, 0);
+// 	if (*key_size == 0)
+// 		return NULL;
+
+// 	key_buf = (uint8_t *) region_alloc(&fiber()->gc, *key_size);
+// 	ucol_getSortKey(coll->collator, s_buf, s_len, key_buf, *key_size);
+
+// 	return key_buf;
+// }
+
+// static uint8_t *
+// coll_bin_get_sort_key(const char *s, int32_t s_len, int32_t *key_size, struct coll *coll)
+// {
+// 	assert(coll->collator != NULL);
+
+// 	UChar *s_buf = (UChar *) region_alloc(&fiber()->gc, s_len);
+// 	s_buf = u_uastrncpy(s_buf, s, s_len);
+
+// 	uint8_t *key_buf = NULL;
+// 	*key_size = ucol_getSortKey(coll->collator, s_buf, s_len, key_buf, 0);
+// 	if (*key_size == 0)
+// 		return NULL;
+
+// 	key_buf = (uint8_t *) region_alloc(&fiber()->gc, *key_size);
+// 	ucol_getSortKey(coll->collator, s_buf, s_len, key_buf, *key_size);
+
+// 	return key_buf;
+// }
 
 /**
  * Set up ICU collator and init cmp and hash members of collation.
