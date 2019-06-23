@@ -44,6 +44,7 @@
 #include <unicode/ucnv.h>
 #include <unicode/uchar.h>
 #include <unicode/ucol.h>
+#include <unicode/utypes.h>
 
 static UConverter* pUtf8conv;
 
@@ -658,6 +659,43 @@ randomBlob(sql_context * context, int argc, sql_value ** argv)
 
 #define Utf8Read(s, e) ucnv_getNextUChar(pUtf8conv, &(s), (e), &status)
 
+static UChar *
+get_Uchar(const char *str, const int32_t str_len)
+{
+	UChar *target = (UChar *) region_alloc(&fiber()->gc, str_len);
+	return u_uastrncpy(target, str, str_len);
+}
+
+static UCollationElements *
+ucol_open_elements(struct coll *coll, const char *str, const int32_t str_len,
+		   UErrorCode *status)
+{
+	assert(coll->collator != NULL);
+	UChar *target = get_Uchar(str, str_len);
+	return ucol_openElements(coll->collator, target, str_len, status);
+}
+
+static int32_t
+next_priority(UCollationElements *elements, int32_t *offset, UErrorCode *status)
+{
+	int32_t priority = ucol_next(elements, &status);
+	if (offset != NULL)
+		offset += ucol_getOffset(elements);
+	return priority;
+}
+
+static int32_t
+get_single_char_prio(struct coll *coll, const char ch, UErrorCode *status)
+{
+	size_t used = region_used(&fiber()->gc);
+
+	UCollationElements *elements = ucol_open_elements(coll, &ch, status);
+	int32_t ret = next_priority(elements, NULL, status);
+
+	region_truncate(&fiber()->gc, used);
+	return ret;
+}
+
 #define SQL_END_OF_STRING        0xffff
 #define SQL_INVALID_UTF8_SYMBOL  0xfffd
 
@@ -672,6 +710,131 @@ enum pattern_match_status {
 	/** Pattern contains invalid UTF-8 symbol. */
 	INVALID_PATTERN = 3
 };
+
+static int
+sql_utf8_pattern_compare(const char *pattern,
+			 const char *string,
+			 const int32_t pat_len,
+			 const int32_t str_len,
+			 const struct coll *coll,
+			 UChar32 match_other)
+{
+	/* Next pattern and input string chars. */
+	int32_t pat_prio = 0;
+	int32_t str_prio = 0;
+	/* One past the last escaped input char. */
+	const char *zEscaped = 0;
+	UErrorCode status = U_ZERO_ERROR;
+
+	const int32_t all_wildcard_prio = get_single_char_prio(coll, '%', &status); //Put it out of recursion!!!
+	const int32_t one_wildcard_prio = get_single_char_prio(coll, '_', &status);
+	const int32_t escape_prio = get_single_char_prio(coll, match_other, &status);
+
+	UCollationElements *pat_elems = ucol_open_elements(coll, pattern, pat_len, &status);
+	UCollationElements *str_elems = ucol_open_elements(coll, string, str_len, &status);
+	int32_t pat_offset = 0;
+	int32_t str_offset = 0;
+
+	while (pat_offset < pat_len) {
+		pat_prio = next_priority(pat_elems, &offset, &status);
+
+		if (pat_prio == UCOL_NULLORDER)
+			return INVALID_PATTERN;
+		if (cur_pat_prio == all_wildcard_prio) {
+			/*
+			 * Skip over multiple "%" characters in
+			 * the pattern. If there are also "_"
+			 * characters, skip those as well, but
+			 * consume a single character of the
+			 * input string for each "_" skipped.
+			 */
+			pat_prio = next_priority(pat_elems, &pat_offset, &status);
+			while (pat_offset < pat_len) { //!!!
+				if (pat_prio == one_wildcard_prio) {
+					str_prio = next_priority(str_elems, &str_offset, &status);
+					if (str_prio == UCOL_NULLORDER)
+						return NO_MATCH;
+				} else if (pat_prio != all_wildcard_prio) {
+					break;
+				}
+			}
+			/*
+			 * "%" at the end of the pattern matches.
+			 */
+			if (pat_offset == pat_len) { //??!!
+				return MATCH;
+			}
+			if (pat_prio == escape_prio) {
+				pat_prio = next_priority(pat_elems, &pat_offset, &status);
+				if (pat_prio == UCOL_NULLORDER)
+					if (status == U_INVALID_CHAR_FOUND)
+						return INVALID_PATTERN;
+					else
+						return NO_WILDCARD_MATCH;
+			}
+
+			/*
+			 * At this point variable c contains the
+			 * first character of the pattern string
+			 * past the "%". Search in the input
+			 * string for the first matching
+			 * character and recursively continue the
+			 * match from that point.
+			 *
+			 * For a case-insensitive search, set
+			 * variable cx to be the same as c but in
+			 * the other case and search the input
+			 * string for either c or cx.
+			 */
+
+			int bMatch;
+
+			while (str_offset < str_len){
+				/*
+				 * This loop could have been
+				 * implemented without if
+				 * converting c2 to lower case
+				 * by holding c_upper and
+				 * c_lower,however it is
+				 * implemented this way because
+				 * lower works better with German
+				 * and Turkish languages.
+				 */
+				if (str_prio == UCOL_NULLORDER) //??!!
+					return NO_MATCH;
+				if (cur_pat_prio != cur_str_prio)
+					continue;
+				bMatch = sql_utf8_pattern_compare(pattern,
+								  string,
+								  pattern_end,
+								  string_end,
+								  coll,
+								  match_other);
+				if (bMatch != NO_MATCH)
+					return bMatch;
+			}
+			return NO_WILDCARD_MATCH;
+		}
+		if (cur_pat_prio == escape_prio) {
+			cur_pat_prio = next_priority(pat_elems, &pat_offset, &status);
+			if (c == SQL_INVALID_UTF8_SYMBOL) //??!!
+				return INVALID_PATTERN;
+			if (c == SQL_END_OF_STRING)
+				return NO_MATCH;
+			zEscaped = pattern;
+		}
+		cur_str_prio = next_priority(str_elems, &str_offset, &status);
+		if (c2 == SQL_INVALID_UTF8_SYMBOL)
+			return NO_MATCH;
+		if (cur_pat_prio == cur_str_prio)
+			continue;
+		if (c == MATCH_ONE_WILDCARD && pattern != zEscaped &&
+		    c2 != SQL_END_OF_STRING)
+			continue;
+		return NO_MATCH;
+	}
+	return string == string_end ? MATCH : NO_MATCH;
+}
 
 /**
  * Compare two UTF-8 strings for equality where the first string
@@ -699,7 +862,7 @@ enum pattern_match_status {
  * @param string String being compared.
  * @param pattern_end Ptr to pattern last symbol.
  * @param string_end Ptr to string last symbol.
- * @param is_like_ci true if LIKE is case insensitive.
+ * @param coll Pointer to collation.
  * @param match_other The escape char for LIKE.
  *
  * @retval One of pattern_match_status values.
@@ -773,8 +936,7 @@ sql_utf8_pattern_compare(const char *pattern,
 			 */
 
 			int bMatch;
-			if (is_like_ci)
-				c = u_tolower(c);
+
 			while (string < string_end){
 				/*
 				 * This loop could have been
@@ -786,7 +948,6 @@ sql_utf8_pattern_compare(const char *pattern,
 				 * lower works better with German
 				 * and Turkish languages.
 				 */
-				c2 = Utf8Read(string, string_end);
 				if (c2 == SQL_INVALID_UTF8_SYMBOL)
 					return NO_MATCH;
 				if (!is_like_ci) {
@@ -800,7 +961,6 @@ sql_utf8_pattern_compare(const char *pattern,
 								  string,
 								  pattern_end,
 								  string_end,
-								  is_like_ci,
 								  coll,
 								  match_other);
 				if (bMatch != NO_MATCH)
@@ -848,9 +1008,10 @@ sql_utf8_pattern_compare(const char *pattern,
 int
 sql_strlike_cs(const char *zPattern, const char *zStr, unsigned int esc)
 {
+	struct coll *coll;
 	return sql_utf8_pattern_compare(zPattern, zStr,
 		                        zPattern + strlen(zPattern),
-		                        zStr + strlen(zStr), 0, esc);
+		                        zStr + strlen(zStr), coll, esc);
 }
 
 /**
@@ -860,9 +1021,10 @@ sql_strlike_cs(const char *zPattern, const char *zStr, unsigned int esc)
 int
 sql_strlike_ci(const char *zPattern, const char *zStr, unsigned int esc)
 {
+	struct coll *coll;
 	return sql_utf8_pattern_compare(zPattern, zStr,
 		                        zPattern + strlen(zPattern),
-		                        zStr + strlen(zStr), 1, esc);
+		                        zStr + strlen(zStr), coll, esc);
 }
 
 /**
@@ -884,7 +1046,6 @@ likeFunc(sql_context *context, int argc, sql_value **argv)
 	u32 escape = SQL_END_OF_STRING;
 	int nPat;
 	sql *db = sql_context_db_handle(context);
-	int is_like_ci = SQL_PTR_TO_INT(sql_user_data(context));
 	int rhs_type = sql_value_type(argv[0]);
 	int lhs_type = sql_value_type(argv[1]);
 
@@ -942,8 +1103,7 @@ likeFunc(sql_context *context, int argc, sql_value **argv)
 		return;
 	int res;
 	struct coll *coll = sqlGetFuncCollSeq(context);
-	res = sql_utf8_pattern_compare(zB, zA, zB_end, zA_end,
-				       is_like_ci, coll, escape);
+	res = sql_utf8_pattern_compare(zB, zA, zB_end, zA_end, coll, escape);
 	if (res == INVALID_PATTERN) {
 		diag_set(ClientError, ER_SQL_EXECUTE, "LIKE pattern can only "\
 			 "contain UTF-8 characters");
