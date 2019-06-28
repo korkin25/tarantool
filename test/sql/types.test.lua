@@ -234,3 +234,20 @@ box.execute('SELECT \'9223372036854\' + 1;')
 
 -- Fix BOOLEAN bindings.
 box.execute('SELECT ?', {true})
+
+--
+-- gh-4189: Update throws an error when executed on a tuple with
+-- types unknown to SQL.
+--
+format = {}
+format[1] = {type = 'integer', name = 'I'}
+format[2] = {type = 'boolean', name = 'B'}
+format[3] = {type = 'array', name = 'F1'}
+format[4] = {type = 'map', name = 'F2'}
+format[5] = {type = 'any', name = 'F3'}
+s = box.schema.space.create('T', {format = format})
+ii = s:create_index('ii')
+s:insert({1, true, {1, 2}, {a = 3}, 'asd'})
+box.execute('UPDATE t SET b = false WHERE i = 1;')
+s:select()
+s:drop()

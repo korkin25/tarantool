@@ -294,6 +294,20 @@ mem_apply_numeric_type(struct Mem *record)
  * SCALAR:
  *    Mem is unchanged, but flag is set to BLOB.
  *
+ * BOOLEAN:
+ *    If memory holds BOOLEAN no actions take place.
+ *
+ * ANY:
+ *    Mem is unchanged, no actions take place.
+ *
+ * MAP:
+ *    If memory holds value with SQL_SUBTYPE_MSGPACK subtype and
+ *    data has MP_MAP type, no actions take place.
+ *
+ * ARRAY:
+ *    If memory holds value with SQL_SUBTYPE_MSGPACK subtype and
+ *    data has MP_ARRAY type, no actions take place.
+ *
  * @param record The value to apply type to.
  * @param type The type to be applied.
  */
@@ -337,8 +351,19 @@ mem_apply_type(struct Mem *record, enum field_type type)
 		}
 		record->flags &= ~(MEM_Real | MEM_Int);
 		return 0;
+	case FIELD_TYPE_ANY:
 	case FIELD_TYPE_SCALAR:
 		return 0;
+	case FIELD_TYPE_MAP:
+		if (record->subtype == SQL_SUBTYPE_MSGPACK &&
+		    mp_typeof(*record->z) == MP_MAP)
+			return 0;
+		return -1;
+	case FIELD_TYPE_ARRAY:
+		if (record->subtype == SQL_SUBTYPE_MSGPACK &&
+		    mp_typeof(*record->z) == MP_ARRAY)
+			return 0;
+		return -1;
 	default:
 		return -1;
 	}
