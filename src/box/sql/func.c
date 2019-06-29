@@ -1111,7 +1111,7 @@ charFunc(sql_context * context, int argc, sql_value ** argv)
 {
 	unsigned char *z, *zOut;
 	int i;
-	zOut = z = sql_malloc64(argc * 4 + 1);
+	zOut = z = sqlMalloc(argc * 4 + 1);
 	if (z == NULL) {
 		context->is_aborted = true;
 		return;
@@ -1257,7 +1257,7 @@ replaceFunc(sql_context * context, int argc, sql_value ** argv)
 				return;
 			}
 			zOld = zOut;
-			zOut = sql_realloc64(zOut, (int)nOut);
+			zOut = sqlRealloc(zOut, (int)nOut);
 			if (zOut == 0) {
 				context->is_aborted = true;
 				sql_free(zOld);

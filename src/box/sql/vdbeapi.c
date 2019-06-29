@@ -216,7 +216,7 @@ sql_value_dup(const sql_value * pOrig)
 	sql_value *pNew;
 	if (pOrig == 0)
 		return 0;
-	pNew = sql_malloc(sizeof(*pNew));
+	pNew = sqlMalloc(sizeof(*pNew));
 	if (pNew == 0)
 		return 0;
 	memset(pNew, 0, sizeof(*pNew));

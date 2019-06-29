@@ -322,15 +322,6 @@ enum sql_ret_code {
 	SQL_DONE = 2,
 };
 
-void *
-sql_malloc(int);
-
-void *
-sql_malloc64(sql_uint64);
-
-void *
-sql_realloc64(void *, sql_uint64);
-
 void
 sql_free(void *);
 

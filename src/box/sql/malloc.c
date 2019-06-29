@@ -127,23 +127,6 @@ sqlMalloc(u64 n)
 }
 
 /*
- * This version of the memory allocation is for use by the application.
- * First make sure the memory subsystem is initialized, then do the
- * allocation.
- */
-void *
-sql_malloc(int n)
-{
-	return n <= 0 ? 0 : sqlMalloc(n);
-}
-
-void *
-sql_malloc64(sql_uint64 n)
-{
-	return sqlMalloc(n);
-}
-
-/*
  * Return the size of a memory allocation previously obtained from
  * sqlMalloc() or sql_malloc().
  */
@@ -193,12 +176,6 @@ sqlRealloc(void *pOld, u64 nBytes)
 		pNew = sql_sized_realloc(pOld, nNew);
 	assert(EIGHT_BYTE_ALIGNMENT(pNew));	/* IMP: R-11148-40995 */
 	return pNew;
-}
-
-void *
-sql_realloc64(void *pOld, sql_uint64 n)
-{
-	return sqlRealloc(pOld, n);
 }
 
 /*
@@ -295,7 +272,7 @@ dbReallocFinish(sql * db, void *p, u64 n)
 	assert(db != 0);
 	assert(p != 0);
 	if (db->mallocFailed == 0) {
-		pNew = sql_realloc64(p, n);
+		pNew = sqlRealloc(p, n);
 		if (!pNew)
 			sqlOomFault(db);
 	}
