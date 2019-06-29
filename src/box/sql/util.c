@@ -151,7 +151,7 @@ sql_normalized_name_db_new(struct sql *db, const char *name, int len)
 		return res;
 
 	size = rc;
-	res = sqlDbReallocOrFree(db, res, size);
+	res = sqlRealloc(res, size);
 	if (res == NULL)
 		return NULL;
 	if (sql_normalize_name(res, size, name, len) > size)
@@ -1221,11 +1221,10 @@ sqlLogEstToInt(LogEst x)
  * accompanying realloc() would invalidate the pointers.
  */
 VList *
-sqlVListAdd(sql * db,	/* The database connection used for malloc() */
-		VList * pIn,	/* The input VList.  Might be NULL */
-		const char *zName,	/* Name of symbol to add */
-		int nName,	/* Bytes of text in zName */
-		int iVal	/* Value to associate with zName */
+sqlVListAdd(VList * pIn,	/* The input VList.  Might be NULL */
+	    const char *zName,	/* Name of symbol to add */
+	    int nName,	/* Bytes of text in zName */
+	    int iVal	/* Value to associate with zName */
     )
 {
 	int nInt;		/* number of sizeof(int) objects needed for zName */
@@ -1237,7 +1236,7 @@ sqlVListAdd(sql * db,	/* The database connection used for malloc() */
 	if (pIn == 0 || pIn[1] + nInt > pIn[0]) {
 		/* Enlarge the allocation */
 		int nAlloc = (pIn ? pIn[0] * 2 : 10) + nInt;
-		VList *pOut = sqlDbRealloc(db, pIn, nAlloc * sizeof(int));
+		VList *pOut = sqlRealloc(pIn, nAlloc * sizeof(int));
 		if (pOut == 0)
 			return pIn;
 		if (pIn == 0)

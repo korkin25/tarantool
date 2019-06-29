@@ -2746,7 +2746,7 @@ sql_drop_index(struct Parse *parse_context)
 
 /*
  * pArray is a pointer to an array of objects. Each object in the
- * array is szEntry bytes in size. This routine uses sqlDbRealloc()
+ * array is szEntry bytes in size. This routine uses sqlRealloc()
  * to extend the array so that there is space for a new object at the end.
  *
  * When this function is called, *pnEntry contains the current size of
@@ -2762,18 +2762,17 @@ sql_drop_index(struct Parse *parse_context)
  * unchanged and a copy of pArray returned.
  */
 void *
-sqlArrayAllocate(sql * db,	/* Connection to notify of malloc failures */
-		     void *pArray,	/* Array of objects.  Might be reallocated */
-		     int szEntry,	/* Size of each object in the array */
-		     int *pnEntry,	/* Number of objects currently in use */
-		     int *pIdx	/* Write the index of a new slot here */
+sqlArrayAllocate(void *pArray,	/* Array of objects.  Might be reallocated */
+		 int szEntry,	/* Size of each object in the array */
+		 int *pnEntry,	/* Number of objects currently in use */
+		 int *pIdx	/* Write the index of a new slot here */
     )
 {
 	char *z;
 	int n = *pnEntry;
 	if ((n & (n - 1)) == 0) {
 		int sz = (n == 0) ? 1 : 2 * n;
-		void *pNew = sqlDbRealloc(db, pArray, sz * szEntry);
+		void *pNew = sqlRealloc(pArray, sz * szEntry);
 		if (pNew == 0) {
 			*pIdx = -1;
 			return pArray;
@@ -2797,8 +2796,7 @@ sql_id_list_append(struct sql *db, struct IdList *list,
 		return NULL;
 	}
 	int i;
-	list->a = sqlArrayAllocate(db, list->a, sizeof(list->a[0]),
-				   &list->nId, &i);
+	list->a = sqlArrayAllocate(list->a, sizeof(list->a[0]), &list->nId, &i);
 	if (i >= 0) {
 		list->a[i].zName = sql_name_from_token(db, name_token);
 		if (list->a[i].zName != NULL)
@@ -2842,8 +2840,7 @@ sqlIdListIndex(IdList * pList, const char *zName)
 }
 
 struct SrcList *
-sql_src_list_enlarge(struct sql *db, struct SrcList *src_list, int new_slots,
-		     int start_idx)
+sql_src_list_enlarge(struct SrcList *src_list, int new_slots, int start_idx)
 {
 	assert(start_idx >= 0);
 	assert(new_slots >= 1);
@@ -2855,9 +2852,9 @@ sql_src_list_enlarge(struct sql *db, struct SrcList *src_list, int new_slots,
 		int to_alloc = src_list->nSrc * 2 + new_slots;
 		int size = sizeof(*src_list) +
 			   (to_alloc - 1) * sizeof(src_list->a[0]);
-		src_list = sqlDbRealloc(db, src_list, size);
+		src_list = sqlRealloc(src_list, size);
 		if (src_list == NULL) {
-			diag_set(OutOfMemory, size, "sqlDbRealloc", "src_list");
+			diag_set(OutOfMemory, size, "sqlRealloc", "src_list");
 			return NULL;
 		}
 		src_list->nAlloc = to_alloc;
@@ -2906,7 +2903,7 @@ sql_src_list_append(struct sql *db, struct SrcList *list,
 			return NULL;
 	} else {
 		struct SrcList *new_list =
-			sql_src_list_enlarge(db, list, 1, list->nSrc);
+			sql_src_list_enlarge(list, 1, list->nSrc);
 		if (new_list == NULL) {
 			sqlSrcListDelete(list);
 			return NULL;
@@ -3217,7 +3214,7 @@ sqlWithAdd(Parse * pParse,	/* Parsing context */
 	if (pWith) {
 		int nByte =
 		    sizeof(*pWith) + (sizeof(pWith->a[1]) * pWith->nCte);
-		pNew = sqlDbRealloc(db, pWith, nByte);
+		pNew = sqlRealloc(pWith, nByte);
 	} else {
 		pNew = sqlDbMallocZero(db, sizeof(*pWith));
 	}

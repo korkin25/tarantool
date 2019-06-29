@@ -186,7 +186,7 @@ growOpArray(Vdbe * v, int nOp)
 
 	assert((unsigned)nOp <= (1024 / sizeof(Op)));
 	assert(nNew >= (p->nOpAlloc + nOp));
-	pNew = sqlDbRealloc(p->db, v->aOp, nNew * sizeof(Op));
+	pNew = sqlRealloc(v->aOp, nNew * sizeof(Op));
 	if (pNew) {
 		p->szOpAlloc = sqlMallocSize(pNew);
 		p->nOpAlloc = p->szOpAlloc / sizeof(Op);
@@ -447,9 +447,8 @@ sqlVdbeMakeLabel(Vdbe * v)
 	int i = p->nLabel++;
 	assert(v->magic == VDBE_MAGIC_INIT);
 	if ((i & (i - 1)) == 0) {
-		p->aLabel = sqlDbReallocOrFree(p->db, p->aLabel,
-						   (i * 2 +
-						    1) * sizeof(p->aLabel[0]));
+		p->aLabel = sqlRealloc(p->aLabel, (i * 2 + 1) *
+				       sizeof(p->aLabel[0]));
 	}
 	if (p->aLabel) {
 		p->aLabel[i] = -1;

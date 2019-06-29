@@ -2631,8 +2631,6 @@ void *sqlDbMallocRawNN(sql *, u64);
 char *sqlDbStrDup(sql *, const char *);
 char *sqlDbStrNDup(sql *, const char *, u64);
 void *sqlRealloc(void *, u64);
-void *sqlDbReallocOrFree(sql *, void *, u64);
-void *sqlDbRealloc(sql *, void *, u64);
 int sqlMallocSize(void *);
 
 /*
@@ -2994,7 +2992,7 @@ void
 sql_drop_table(struct Parse *);
 void sqlInsert(Parse *, SrcList *, Select *, IdList *,
 	       enum on_conflict_action);
-void *sqlArrayAllocate(sql *, void *, int, int *, int *);
+void *sqlArrayAllocate(void *, int, int *, int *);
 
 /**
  * Append a new element to the given IdList. Create a new IdList
@@ -3020,7 +3018,7 @@ int sqlIdListIndex(IdList *, const char *);
  * For example, suppose a SrcList initially contains two entries:
  * A,B.
  * To append 3 new entries onto the end, do this:
- *    sql_src_list_enlarge(db, src_list, 3, 2);
+ *    sql_src_list_enlarge(src_list, 3, 2);
  *
  * After the call above it would contain:  A, B, nil, nil, nil.
  * If the start_idx argument had been 1 instead of 2, then the
@@ -3028,7 +3026,6 @@ int sqlIdListIndex(IdList *, const char *);
  * new slots, the start_idx value would be 0. The result then
  * would be: nil, nil, nil, A, B.
  *
- * @param db The database connection.
  * @param src_list The SrcList to be enlarged.
  * @param new_slots Number of new slots to add to src_list->a[].
  * @param start_idx Index in src_list->a[] of first new slot.
@@ -3036,8 +3033,7 @@ int sqlIdListIndex(IdList *, const char *);
  * @retval NULL Otherwise. The diag message is set.
  */
 struct SrcList *
-sql_src_list_enlarge(struct sql *db, struct SrcList *src_list, int new_slots,
-		     int start_idx);
+sql_src_list_enlarge(struct SrcList *src_list, int new_slots, int start_idx);
 
 /**
  * Allocate a new empty SrcList object.
@@ -3906,7 +3902,7 @@ u32 sqlUtf8Read(const u8 **);
 LogEst sqlLogEst(u64);
 LogEst sqlLogEstAdd(LogEst, LogEst);
 u64 sqlLogEstToInt(LogEst);
-VList *sqlVListAdd(sql *, VList *, const char *, int, int);
+VList *sqlVListAdd(VList *, const char *, int, int);
 const char *sqlVListNumToName(VList *, int);
 int sqlVListNameToNum(VList *, const char *, int);
 

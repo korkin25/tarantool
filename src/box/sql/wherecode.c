@@ -567,9 +567,9 @@ codeEqualityTerm(Parse * pParse,	/* The parsing context */
 		i = pLevel->u.in.nIn;
 		pLevel->u.in.nIn += nEq;
 		pLevel->u.in.aInLoop =
-		    sqlDbReallocOrFree(pParse->db, pLevel->u.in.aInLoop,
-					   sizeof(pLevel->u.in.aInLoop[0]) *
-					   pLevel->u.in.nIn);
+			sqlRealloc(pLevel->u.in.aInLoop,
+				   sizeof(pLevel->u.in.aInLoop[0]) *
+				   pLevel->u.in.nIn);
 		pIn = pLevel->u.in.aInLoop;
 		if (pIn) {
 			int iMap = 0;	/* Index in aiMap[] */

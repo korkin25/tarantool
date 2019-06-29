@@ -931,7 +931,7 @@ idlist(A) ::= nm(Y). {
         int rc = sql_normalize_name(p->u.zToken, name_sz, t.z, t.n);
         if (rc > name_sz) {
           name_sz = rc;
-          p = sqlDbReallocOrFree(pParse->db, p, sizeof(*p) + name_sz);
+          p = sqlRealloc(p, sizeof(*p) + name_sz);
           if (p == NULL)
             goto tarantool_error;
           p->u.zToken = (char *) &p[1];

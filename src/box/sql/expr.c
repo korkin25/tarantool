@@ -994,7 +994,7 @@ sql_expr_new_dequoted(struct sql *db, int op, const struct Token *token)
 	} else if ((rc = sql_normalize_name(e->u.zToken, extra_size, token->z,
 					    token->n)) > extra_size) {
 		extra_size = rc;
-		e = sqlDbReallocOrFree(db, e, sizeof(*e) + extra_size);
+		e = sqlRealloc(e, sizeof(*e) + extra_size);
 		if (e == NULL)
 			return NULL;
 		e->u.zToken = (char *) &e[1];
@@ -1168,7 +1168,6 @@ sqlExprFunction(Parse * pParse, ExprList * pList, Token * pToken)
 void
 sqlExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
 {
-	sql *db = pParse->db;
 	const char *z;
 	ynVar x;
 
@@ -1231,10 +1230,8 @@ sqlExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
 				doAdd = 1;
 			}
 		}
-		if (doAdd) {
-			pParse->pVList =
-			    sqlVListAdd(db, pParse->pVList, z, n, x);
-		}
+		if (doAdd)
+			pParse->pVList = sqlVListAdd(pParse->pVList, z, n, x);
 	}
 	pExpr->iColumn = x;
 	if (x > SQL_BIND_PARAMETER_MAX) {
@@ -1733,8 +1730,8 @@ sql_expr_list_append(struct sql *db, struct ExprList *expr_list,
 	} else if ((expr_list->nExpr & (expr_list->nExpr - 1)) == 0) {
 		struct ExprList_item *a;
 		assert(expr_list->nExpr > 0);
-		a = sqlDbRealloc(db, expr_list->a, expr_list->nExpr * 2 *
-				     sizeof(expr_list->a[0]));
+		a = sqlRealloc(expr_list->a, expr_list->nExpr * 2 *
+			       sizeof(expr_list->a[0]));
 		if (a == NULL)
 			goto no_mem;
 		expr_list->a = a;
@@ -5206,13 +5203,11 @@ sqlFunctionUsesThisSrc(Expr * pExpr, SrcList * pSrcList)
  * the new element.  Return a negative number if malloc fails.
  */
 static int
-addAggInfoColumn(sql * db, AggInfo * pInfo)
+addAggInfoColumn(AggInfo * pInfo)
 {
 	int i;
-	pInfo->aCol = sqlArrayAllocate(db,
-					   pInfo->aCol,
-					   sizeof(pInfo->aCol[0]),
-					   &pInfo->nColumn, &i);
+	pInfo->aCol = sqlArrayAllocate(pInfo->aCol, sizeof(pInfo->aCol[0]),
+				       &pInfo->nColumn, &i);
 	return i;
 }
 
@@ -5221,13 +5216,11 @@ addAggInfoColumn(sql * db, AggInfo * pInfo)
  * the new element.  Return a negative number if malloc fails.
  */
 static int
-addAggInfoFunc(sql * db, AggInfo * pInfo)
+addAggInfoFunc(AggInfo * pInfo)
 {
 	int i;
-	pInfo->aFunc = sqlArrayAllocate(db,
-					    pInfo->aFunc,
-					    sizeof(pInfo->aFunc[0]),
-					    &pInfo->nFunc, &i);
+	pInfo->aFunc = sqlArrayAllocate(pInfo->aFunc, sizeof(pInfo->aFunc[0]),
+					&pInfo->nFunc, &i);
 	return i;
 }
 
@@ -5282,8 +5275,7 @@ analyzeAggregate(Walker * pWalker, Expr * pExpr)
 						if ((k >= pAggInfo->nColumn)
 						    && (k =
 							addAggInfoColumn
-							(pParse->db,
-							 pAggInfo)) >= 0) {
+							(pAggInfo)) >= 0) {
 							pCol =
 							    &pAggInfo->aCol[k];
 							pCol->space_def =
@@ -5381,8 +5373,7 @@ analyzeAggregate(Walker * pWalker, Expr * pExpr)
 				if (i >= pAggInfo->nFunc) {
 					/* pExpr is original.  Make a new entry in pAggInfo->aFunc[]
 					 */
-					i = addAggInfoFunc(pParse->db,
-							   pAggInfo);
+					i = addAggInfoFunc(pAggInfo);
 					if (i >= 0) {
 						assert(!ExprHasProperty
 						       (pExpr, EP_xIsSelect));

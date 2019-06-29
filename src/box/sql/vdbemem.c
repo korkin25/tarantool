@@ -117,8 +117,7 @@ sqlVdbeMemGrow(Mem * pMem, int n, int bPreserve)
 		if (n < 32)
 			n = 32;
 		if (bPreserve && pMem->szMalloc > 0 && pMem->z == pMem->zMalloc) {
-			pMem->z = pMem->zMalloc =
-			    sqlDbReallocOrFree(pMem->db, pMem->z, n);
+			pMem->z = pMem->zMalloc = sqlRealloc(pMem->z, n);
 			bPreserve = 0;
 		} else {
 			if (pMem->szMalloc > 0)

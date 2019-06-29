@@ -249,50 +249,6 @@ sqlDbMallocRawNN(sql * db, u64 n)
 	return p;
 }
 
-/* Forward declaration */
-static SQL_NOINLINE void *dbReallocFinish(sql * db, void *p, u64 n);
-
-/*
- * Resize the block of memory pointed to by p to n bytes. If the
- * resize fails, set the mallocFailed flag in the connection object.
- */
-void *
-sqlDbRealloc(sql * db, void *p, u64 n)
-{
-	assert(db != 0);
-	if (p == 0)
-		return sqlDbMallocRawNN(db, n);
-	return dbReallocFinish(db, p, n);
-}
-
-static SQL_NOINLINE void *
-dbReallocFinish(sql * db, void *p, u64 n)
-{
-	void *pNew = 0;
-	assert(db != 0);
-	assert(p != 0);
-	if (db->mallocFailed == 0) {
-		pNew = sqlRealloc(p, n);
-		if (!pNew)
-			sqlOomFault(db);
-	}
-	return pNew;
-}
-
-/*
- * Attempt to reallocate p.  If the reallocation fails, then free p
- * and set the mallocFailed flag in the database connection.
- */
-void *
-sqlDbReallocOrFree(sql * db, void *p, u64 n)
-{
-	void *pNew;
-	pNew = sqlDbRealloc(db, p, n);
-	if (!pNew)
-		sql_free(p);
-	return pNew;
-}
-
 /*
  * Make a copy of a string in memory obtained from sqlMalloc(). These
  * functions call sqlMallocRaw() directly instead of sqlMalloc(). This

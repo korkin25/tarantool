@@ -854,11 +854,7 @@ sqlStrAccumEnlarge(StrAccum * p, int N)
 		} else {
 			p->nAlloc = (int)szNew;
 		}
-		if (p->db) {
-			zNew = sqlDbRealloc(p->db, zOld, p->nAlloc);
-		} else {
-			zNew = sqlRealloc(zOld, p->nAlloc);
-		}
+		zNew = sqlRealloc(zOld, p->nAlloc);
 		if (zNew) {
 			assert(p->zText != 0 || p->nChar == 0);
 			if (!isMalloced(p) && p->nChar > 0)

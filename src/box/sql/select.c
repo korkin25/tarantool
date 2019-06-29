@@ -278,8 +278,7 @@ src_list_append_unique(struct sql *db, struct SrcList *list,
 		if (name != NULL && strcmp(new_name, name) == 0)
 			return list;
 	}
-	struct SrcList *new_list =
-		sql_src_list_enlarge(db, list, 1, list->nSrc);
+	struct SrcList *new_list = sql_src_list_enlarge(list, 1, list->nSrc);
 	if (new_list == NULL) {
 		sqlSrcListDelete(list);
 		return NULL;
@@ -4099,7 +4098,7 @@ flattenSubquery(Parse * pParse,		/* Parsing context */
 		 */
 		if (nSubSrc > 1) {
 			struct SrcList *new_list =
-				sql_src_list_enlarge(db, pSrc, nSubSrc - 1,
+				sql_src_list_enlarge(pSrc, nSubSrc - 1,
 						     iFrom + 1);
 			if (new_list == NULL) {
 				pParse->is_aborted = true;
