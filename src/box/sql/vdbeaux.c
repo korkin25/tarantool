@@ -53,9 +53,9 @@ sqlVdbeCreate(Parse * pParse)
 	assert(!pParse->parse_only);
 	sql *db = pParse->db;
 	Vdbe *p;
-	p = sqlDbMallocRawNN(db, sizeof(Vdbe));
-	if (p == 0)
-		return 0;
+	p = sqlMalloc(sizeof(Vdbe));
+	if (p == NULL)
+		return NULL;
 	memset(p, 0, sizeof(Vdbe));
 	p->db = db;
 	stailq_create(&p->autoinc_id_list);
@@ -383,7 +383,7 @@ sqlVdbeAddOp4Dup8(Vdbe * p,	/* Add the opcode to this VM */
 		      int p4type	/* P4 operand type */
     )
 {
-	char *p4copy = sqlDbMallocRawNN(sqlVdbeDb(p), 8);
+	char *p4copy = sqlMalloc(8);
 	if (p4copy)
 		memcpy(p4copy, zP4, 8);
 	return sqlVdbeAddOp4(p, op, p1, p2, p3, p4copy, p4type);
@@ -1710,7 +1710,7 @@ sqlVdbeMakeReady(Vdbe * p,	/* The VDBE */
 		    allocSpace(&x, p->apCsr, nCursor * sizeof(VdbeCursor *));
 		if (x.nNeeded == 0)
 			break;
-		x.pSpace = p->pFree = sqlDbMallocRawNN(db, x.nNeeded);
+		x.pSpace = p->pFree = sqlMalloc(x.nNeeded);
 		x.nFree = x.nNeeded;
 	} while (!db->mallocFailed);
 
@@ -1870,13 +1870,11 @@ void
 sqlVdbeSetNumCols(Vdbe * p, int nResColumn)
 {
 	int n;
-	sql *db = p->db;
-
 	releaseMemArray(p->aColName, p->nResColumn * COLNAME_N);
 	sql_free(p->aColName);
 	n = nResColumn * COLNAME_N;
 	p->nResColumn = (u16) nResColumn;
-	p->aColName = (Mem *) sqlDbMallocRawNN(db, sizeof(Mem) * n);
+	p->aColName = (Mem *) sqlMalloc(sizeof(Mem) * n);
 	if (p->aColName == 0)
 		return;
 	initMemArray(p->aColName, n, p->db, MEM_Null);

@@ -908,10 +908,8 @@ static struct Expr *
 sql_expr_new_empty(struct sql *db, int op, int extra_size)
 {
 	struct Expr *e = sqlDbMallocRawNN(db, sizeof(*e) + extra_size);
-	if (e == NULL) {
-		diag_set(OutOfMemory, sizeof(*e), "sqlDbMallocRawNN", "e");
+	if (e == NULL)
 		return NULL;
-	}
 	memset(e, 0, sizeof(*e));
 	e->op = (u8)op;
 	e->iAgg = -1;
@@ -1054,7 +1052,7 @@ sqlPExpr(Parse * pParse,	/* Parsing context */
 		if (p == NULL)
 			pParse->is_aborted = true;
 	} else {
-		p = sqlDbMallocRawNN(pParse->db, sizeof(Expr));
+		p = sqlMalloc(sizeof(Expr));
 		if (p) {
 			memset(p, 0, sizeof(Expr));
 			p->op = op & TKFLG_MASK;
@@ -1403,8 +1401,7 @@ sql_expr_dup(struct sql *db, struct Expr *p, int flags, char **buffer)
 		zAlloc = *buffer;
 		staticFlag = EP_Static;
 	} else {
-		zAlloc = sqlDbMallocRawNN(db,
-					      sql_expr_sizeof(p, flags));
+		zAlloc = sqlMalloc(sql_expr_sizeof(p, flags));
 		staticFlag = 0;
 	}
 	pNew = (Expr *) zAlloc;
@@ -1553,7 +1550,7 @@ sql_expr_list_dup(struct sql *db, struct ExprList *p, int flags)
 	assert(db != NULL);
 	if (p == NULL)
 		return NULL;
-	ExprList *pNew = sqlDbMallocRawNN(db, sizeof(*pNew));
+	ExprList *pNew = sqlMalloc(sizeof(*pNew));
 	if (pNew == NULL)
 		return NULL;
 	pNew->nExpr = i = p->nExpr;
@@ -1561,7 +1558,7 @@ sql_expr_list_dup(struct sql *db, struct ExprList *p, int flags)
 		for (i = 1; i < p->nExpr; i += i) {
 		}
 	}
-	pNew->a = pItem = sqlDbMallocRawNN(db, i * sizeof(p->a[0]));
+	pNew->a = pItem = sqlMalloc(i * sizeof(p->a[0]));
 	if (pItem == NULL) {
 		sql_free(pNew);
 		return NULL;
@@ -1615,7 +1612,7 @@ sqlSrcListDup(sql * db, SrcList * p, int flags)
 		return 0;
 	nByte =
 	    sizeof(*p) + (p->nSrc > 0 ? sizeof(p->a[0]) * (p->nSrc - 1) : 0);
-	pNew = sqlDbMallocRawNN(db, nByte);
+	pNew = sqlMalloc(nByte);
 	if (pNew == 0)
 		return 0;
 	pNew->nSrc = pNew->nAlloc = p->nSrc;
@@ -1655,11 +1652,11 @@ sqlIdListDup(sql * db, IdList * p)
 	assert(db != 0);
 	if (p == 0)
 		return 0;
-	pNew = sqlDbMallocRawNN(db, sizeof(*pNew));
+	pNew = sqlMalloc(sizeof(*pNew));
 	if (pNew == 0)
 		return 0;
 	pNew->nId = p->nId;
-	pNew->a = sqlDbMallocRawNN(db, p->nId * sizeof(p->a[0]));
+	pNew->a = sqlMalloc(p->nId * sizeof(p->a[0]));
 	if (pNew->a == 0) {
 		sql_free(pNew);
 		return 0;
@@ -1686,7 +1683,7 @@ sqlSelectDup(sql * db, Select * p, int flags)
 	assert(db != 0);
 	if (p == 0)
 		return 0;
-	pNew = sqlDbMallocRawNN(db, sizeof(*p));
+	pNew = sqlMalloc(sizeof(*p));
 	if (pNew == 0)
 		return 0;
 	pNew->pEList = sql_expr_list_dup(db, p->pEList, flags);
@@ -1723,8 +1720,7 @@ sql_expr_list_append(struct sql *db, struct ExprList *expr_list,
 		if (expr_list == NULL)
 			goto no_mem;
 		expr_list->nExpr = 0;
-		expr_list->a =
-			sqlDbMallocRawNN(db, sizeof(expr_list->a[0]));
+		expr_list->a = sqlMalloc(sizeof(expr_list->a[0]));
 		if (expr_list->a == NULL)
 			goto no_mem;
 	} else if ((expr_list->nExpr & (expr_list->nExpr - 1)) == 0) {
@@ -3732,7 +3728,7 @@ sqlExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			z = &pExpr->u.zToken[2];
 			n = sqlStrlen30(z) - 1;
 			assert(z[n] == '\'');
-			zBlob = sqlHexToBlob(sqlVdbeDb(v), z, n);
+			zBlob = sqlHexToBlob(z, n);
 			sqlVdbeAddOp4(v, OP_Blob, n / 2, target, 0, zBlob,
 					  P4_DYNAMIC);
 			return target;

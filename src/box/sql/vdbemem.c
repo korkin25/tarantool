@@ -1423,8 +1423,8 @@ valueFromExpr(sql * db,	/* The database connection */
 		zVal = &pExpr->u.zToken[2];
 		nVal = sqlStrlen30(zVal) - 1;
 		assert(zVal[nVal] == '\'');
-		sqlVdbeMemSetStr(pVal, sqlHexToBlob(db, zVal, nVal),
-				     nVal / 2, 0, SQL_DYNAMIC);
+		sqlVdbeMemSetStr(pVal, sqlHexToBlob(zVal, nVal), nVal / 2, 0,
+				 SQL_DYNAMIC);
 	}
 #endif
 
@@ -1481,16 +1481,14 @@ recordFunc(sql_context * context, int argc, sql_value ** argv)
 	int nSerial;		/* Bytes of space for iSerial as varint */
 	u32 nVal;		/* Bytes of space required for argv[0] */
 	int nRet;
-	sql *db;
 	u8 *aRet;
 
 	UNUSED_PARAMETER(argc);
 	iSerial = sqlVdbeSerialType(argv[0], file_format, &nVal);
 	nSerial = sqlVarintLen(iSerial);
-	db = sql_context_db_handle(context);
 
 	nRet = 1 + nSerial + nVal;
-	aRet = sqlDbMallocRawNN(db, nRet);
+	aRet = sqlMalloc(nRet);
 	if (aRet == 0) {
 		context->is_aborted = true;
 	} else {

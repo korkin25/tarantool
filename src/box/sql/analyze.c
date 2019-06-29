@@ -199,7 +199,6 @@ sampleClear(Stat4Sample * p)
 static void
 sampleSetKey(Stat4Sample * p, int n, const u8 * pData)
 {
-	assert(db != 0);
 	if (p->nKey)
 		sql_free(p->aKey);
 	p->aKey = sqlMalloc(n);

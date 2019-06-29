@@ -889,7 +889,7 @@ idlist(A) ::= nm(Y). {
   static void spanExpr(ExprSpan *pOut, Parse *pParse, int op, Token t){
     struct Expr *p = NULL;
     int name_sz = t.n + 1;
-    p = sqlDbMallocRawNN(pParse->db, sizeof(Expr) + name_sz);
+    p = sqlMalloc(sizeof(Expr) + name_sz);
     if( p ){
       memset(p, 0, sizeof(Expr));
       switch (op) {

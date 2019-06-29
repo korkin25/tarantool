@@ -92,10 +92,8 @@ whereClauseInsert(WhereClause * pWC, Expr * p, u16 wtFlags)
 	testcase(wtFlags & TERM_VIRTUAL);
 	if (pWC->nTerm >= pWC->nSlot) {
 		WhereTerm *pOld = pWC->a;
-		sql *db = pWC->pWInfo->pParse->db;
 		pWC->a =
-		    sqlDbMallocRawNN(db,
-					 sizeof(pWC->a[0]) * pWC->nSlot * 2);
+			sqlMalloc(sizeof(pWC->a[0]) * pWC->nSlot * 2);
 		if (pWC->a == 0) {
 			if (wtFlags & TERM_DYNAMIC) {
 				sql_expr_delete(p, false);
@@ -581,7 +579,7 @@ exprAnalyzeOrTerm(SrcList * pSrc,	/* the FROM clause */
 			assert((pOrTerm->
 				wtFlags & (TERM_ANDINFO | TERM_ORINFO)) == 0);
 			chngToIN = 0;
-			pAndInfo = sqlDbMallocRawNN(db, sizeof(*pAndInfo));
+			pAndInfo = sqlMalloc(sizeof(*pAndInfo));
 			if (pAndInfo) {
 				WhereClause *pAndWC;
 				WhereTerm *pAndTerm;

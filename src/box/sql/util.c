@@ -1007,12 +1007,12 @@ sqlHexToInt(int h)
  * the calling routine.
  */
 void *
-sqlHexToBlob(sql * db, const char *z, int n)
+sqlHexToBlob(const char *z, int n)
 {
 	char *zBlob;
 	int i;
 
-	zBlob = (char *)sqlDbMallocRawNN(db, n / 2 + 1);
+	zBlob = (char *)sqlMalloc(n / 2 + 1);
 	n--;
 	if (zBlob) {
 		for (i = 0; i < n; i += 2) {

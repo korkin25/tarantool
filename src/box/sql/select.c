@@ -157,11 +157,10 @@ sqlSelectNew(Parse * pParse,	/* Parsing context */
 	Select *pNew;
 	Select standin;
 	sql *db = pParse->db;
-	pNew = sqlDbMallocRawNN(db, sizeof(*pNew));
-	if (pNew == 0) {
-		assert(db->mallocFailed);
+	pNew = sqlMalloc(sizeof(*pNew));
+	assert(pNew != NULL || db->mallocFailed);
+	if (pNew == NULL)
 		pNew = &standin;
-	}
 	if (pEList == 0) {
 		struct Expr *expr = sql_expr_new_anon(db, TK_ASTERISK);
 		if (expr == NULL)
@@ -1371,12 +1370,10 @@ sql_key_info_sizeof(uint32_t part_count)
 struct sql_key_info *
 sql_key_info_new(sql *db, uint32_t part_count)
 {
-	struct sql_key_info *key_info = sqlDbMallocRawNN(db,
-				sql_key_info_sizeof(part_count));
-	if (key_info == NULL) {
-		sqlOomFault(db);
+	struct sql_key_info *key_info =
+		sqlMalloc(sql_key_info_sizeof(part_count));
+	if (key_info == NULL)
 		return NULL;
-	}
 	key_info->db = db;
 	key_info->key_def = NULL;
 	key_info->refs = 1;
@@ -1397,12 +1394,10 @@ sql_key_info_new(sql *db, uint32_t part_count)
 struct sql_key_info *
 sql_key_info_new_from_key_def(sql *db, const struct key_def *key_def)
 {
-	struct sql_key_info *key_info = sqlDbMallocRawNN(db,
-				sql_key_info_sizeof(key_def->part_count));
-	if (key_info == NULL) {
-		sqlOomFault(db);
+	struct sql_key_info *key_info =
+		sqlMalloc(sql_key_info_sizeof(key_def->part_count));
+	if (key_info == NULL)
 		return NULL;
-	}
 	key_info->db = db;
 	key_info->key_def = NULL;
 	key_info->refs = 1;
@@ -3308,7 +3303,7 @@ multiSelectOrderBy(Parse * pParse,	/* Parsing context */
 	 * to the right and the left are evaluated, they use the correct
 	 * collation.
 	 */
-	aPermute = sqlDbMallocRawNN(db, sizeof(int) * (nOrderBy + 1));
+	aPermute = sqlMalloc(sizeof(int) * (nOrderBy + 1));
 	if (aPermute) {
 		struct ExprList_item *pItem;
 		aPermute[0] = nOrderBy;

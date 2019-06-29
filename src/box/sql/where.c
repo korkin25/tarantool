@@ -2077,8 +2077,8 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 #endif
 	if (p == 0) {
 		/* Allocate a new WhereLoop to add to the end of the list */
-		*ppPrev = p = sqlDbMallocRawNN(db, sizeof(WhereLoop));
-		if (p == 0)
+		*ppPrev = p = sqlMalloc(sizeof(WhereLoop));
+		if (p == NULL)
 			return -1;
 		whereLoopInit(p);
 		p->pNextLoop = 0;
@@ -3554,7 +3554,6 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 	int mxChoice;		/* Maximum number of simultaneous paths tracked */
 	int nLoop;		/* Number of terms in the join */
 	Parse *pParse;		/* Parsing context */
-	sql *db;		/* The database connection */
 	int iLoop;		/* Loop counter over the terms of the join */
 	int ii, jj;		/* Loop counters */
 	int mxI = 0;		/* Index of next entry to replace */
@@ -3573,7 +3572,6 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 	int nSpace;		/* Bytes of space allocated at pSpace */
 
 	pParse = pWInfo->pParse;
-	db = pParse->db;
 	nLoop = pWInfo->nLevel;
 	/* TUNING: For simple queries, only the best path is tracked.
 	 * For 2-way joins, the 5 best paths are followed.
@@ -3599,8 +3597,8 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 	nSpace =
 	    (sizeof(WherePath) + sizeof(WhereLoop *) * nLoop) * mxChoice * 2;
 	nSpace += sizeof(LogEst) * nOrderBy;
-	pSpace = sqlDbMallocRawNN(db, nSpace);
-	if (pSpace == 0)
+	pSpace = sqlMalloc(nSpace);
+	if (pSpace == NULL)
 		return -1;
 	aTo = (WherePath *) pSpace;
 	aFrom = aTo + mxChoice;
@@ -4282,7 +4280,7 @@ sqlWhereBegin(Parse * pParse,	/* The parser context */
 	 */
 	nByteWInfo =
 	    ROUND8(sizeof(WhereInfo) + (nTabList - 1) * sizeof(WhereLevel));
-	pWInfo = sqlDbMallocRawNN(db, nByteWInfo + sizeof(WhereLoop));
+	pWInfo = sqlMalloc(nByteWInfo + sizeof(WhereLoop));
 	if (db->mallocFailed) {
 		sql_free(pWInfo);
 		pWInfo = 0;
