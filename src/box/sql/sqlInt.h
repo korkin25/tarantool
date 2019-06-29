@@ -990,8 +990,8 @@ typedef u64 uptr;
 #define IsPowerOfTwo(X) (((X)&((X)-1))==0)
 
 /*
- * The following value as a destructor means to use sqlDbFree().
- * The sqlDbFree() routine requires two parameters instead of the
+ * The following value as a destructor means to use sql_free().
+ * The sql_free() routine requires two parameters instead of the
  * one parameter that destructors normally want.  So we have to introduce
  * this magic value that the code knows to handle differently.  Any
  * pointer will work here as long as it is distinct from sql_STATIC
@@ -1709,7 +1709,7 @@ struct Expr {
 #define EP_Reduced   0x002000	/* Expr struct EXPR_REDUCEDSIZE bytes only */
 #define EP_TokenOnly 0x004000	/* Expr struct EXPR_TOKENONLYSIZE bytes only */
 #define EP_Static    0x008000	/* Held in memory not obtained from malloc() */
-#define EP_MemToken  0x010000	/* Need to sqlDbFree() Expr.zToken */
+#define EP_MemToken  0x010000	/* Need to sql_free() Expr.zToken */
 #define EP_NoReduce  0x020000	/* Cannot EXPRDUP_REDUCE this Expr */
 #define EP_Unlikely  0x040000	/* unlikely() or likelihood() function */
 #define EP_ConstFunc 0x080000	/* A sql_FUNC_CONSTANT or _SLOCHNG function */
@@ -2642,7 +2642,6 @@ char *sqlDbStrNDup(sql *, const char *, u64);
 void *sqlRealloc(void *, u64);
 void *sqlDbReallocOrFree(sql *, void *, u64);
 void *sqlDbRealloc(sql *, void *, u64);
-void sqlDbFree(sql *, void *);
 int sqlMallocSize(void *);
 
 /*
@@ -2660,7 +2659,7 @@ int sqlMallocSize(void *);
 #else
 #define sqlStackAllocRaw(D,N)   sqlDbMallocRaw(D,N)
 #define sqlStackAllocZero(D,N)  sqlDbMallocZero(D,N)
-#define sqlStackFree(D,P)       sqlDbFree(D,P)
+#define sqlStackFree(P)       sql_free(P)
 #endif
 
 int sqlIsNaN(double);
@@ -2815,7 +2814,7 @@ sql_expr_new_anon(struct sql *db, int op)
 	return sql_expr_new_named(db, op, NULL);
 }
 
-void sqlExprAttachSubtrees(sql *, Expr *, Expr *, Expr *);
+void sqlExprAttachSubtrees(Expr *, Expr *, Expr *);
 Expr *sqlPExpr(Parse *, int, Expr *, Expr *);
 void sqlPExprAddSelect(Parse *, Expr *, Select *);
 
@@ -3077,11 +3076,11 @@ sql_src_list_append(struct sql *db, struct SrcList *list,
 SrcList *sqlSrcListAppendFromTerm(Parse *, SrcList *, Token *,
 				      Token *, Select *, Expr *, IdList *);
 void sqlSrcListIndexedBy(Parse *, SrcList *, Token *);
-void sqlSrcListFuncArgs(Parse *, SrcList *, ExprList *);
+void sqlSrcListFuncArgs(SrcList *, ExprList *);
 int sqlIndexedByLookup(Parse *, struct SrcList_item *);
 void sqlSrcListShiftJoinType(SrcList *);
 void sqlSrcListAssignCursors(Parse *, SrcList *);
-void sqlIdListDelete(sql *, IdList *);
+void sqlIdListDelete(IdList *);
 
 /**
  * Create a new index for an SQL table.  name is the name of the
@@ -3682,7 +3681,7 @@ vdbe_code_row_trigger_direct(struct Parse *parser, struct sql_trigger *trigger,
 			     struct space *space, int reg, int orconf,
 			     int ignore_jump);
 
-void sqlDeleteTriggerStep(sql *, TriggerStep *);
+void sqlDeleteTriggerStep(TriggerStep *);
 
 /**
  * Turn a SELECT statement (that the select parameter points to)
@@ -4410,7 +4409,7 @@ int
 sql_binary_compare_coll_seq(Parse *parser, Expr *left, Expr *right,
 			    uint32_t *id);
 With *sqlWithAdd(Parse *, With *, Token *, ExprList *, Select *);
-void sqlWithDelete(sql *, With *);
+void sqlWithDelete(With *);
 void sqlWithPush(Parse *, With *, u8);
 
 /*

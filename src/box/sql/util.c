@@ -1191,7 +1191,7 @@ sqlLogEstToInt(LogEst x)
  * db->mallocFailed flag is set.
  *
  * A VList is really just an array of integers.  To destroy a VList,
- * simply pass it to sqlDbFree().
+ * simply pass it to sql_free().
  *
  * The first integer is the number of integers allocated for the whole
  * VList.  The second integer is the number of integers actually used.

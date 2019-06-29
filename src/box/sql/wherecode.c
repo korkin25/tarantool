@@ -545,8 +545,8 @@ codeEqualityTerm(Parse * pParse,	/* The parsing context */
 				pLeft->x.pList = pOrigLhs;
 				pX->pLeft = pLeft;
 			}
-			sql_expr_list_delete(pParse->db, pLhs);
-			sql_expr_list_delete(pParse->db, pRhs);
+			sql_expr_list_delete(pLhs);
+			sql_expr_list_delete(pRhs);
 		}
 
 		if (eType == IN_INDEX_INDEX_DESC) {
@@ -599,7 +599,7 @@ codeEqualityTerm(Parse * pParse,	/* The parsing context */
 		} else {
 			pLevel->u.in.nIn = 0;
 		}
-		sqlDbFree(pParse->db, aiMap);
+		sql_free(aiMap);
 	}
 	disableTerm(pLevel, pTerm);
 	return iReg;
@@ -1167,8 +1167,8 @@ sqlWhereCodeOneLoopStart(WhereInfo * pWInfo,	/* Complete information about the W
 			endEq = 0;
 			nConstraint++;
 		}
-		sqlDbFree(db, start_types);
-		sqlDbFree(db, end_types);
+		sql_free(start_types);
+		sql_free(end_types);
 
 		/* Top of the loop body */
 		pLevel->p2 = sqlVdbeCurrentAddr(v);
@@ -1507,14 +1507,14 @@ sqlWhereCodeOneLoopStart(WhereInfo * pWInfo,	/* Complete information about the W
 			pLevel->iIdxCur = iCovCur;
 		if (pAndExpr) {
 			pAndExpr->pLeft = 0;
-			sql_expr_delete(db, pAndExpr, false);
+			sql_expr_delete(pAndExpr, false);
 		}
 		sqlVdbeChangeP1(v, iRetInit, sqlVdbeCurrentAddr(v));
 		sqlVdbeGoto(v, pLevel->addrBrk);
 		sqlVdbeResolveLabel(v, iLoopBody);
 
 		if (pWInfo->nLevel > 1)
-			sqlStackFree(db, pOrTab);
+			sqlStackFree(pOrTab);
 		if (!untestedTerms)
 			disableTerm(pLevel, pTerm);
 	} else

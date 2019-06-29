@@ -853,13 +853,13 @@ sqlVdbeSorterInit(sql * db,	/* Database connection (for malloc()) */
  * Free the list of sorted records starting at pRecord.
  */
 static void
-vdbeSorterRecordFree(sql * db, SorterRecord * pRecord)
+vdbeSorterRecordFree(SorterRecord * pRecord)
 {
 	SorterRecord *p;
 	SorterRecord *pNext;
 	for (p = pRecord; p; p = pNext) {
 		pNext = p->u.pNext;
-		sqlDbFree(db, p);
+		sql_free(p);
 	}
 }
 
@@ -868,12 +868,12 @@ vdbeSorterRecordFree(sql * db, SorterRecord * pRecord)
  * fields of *pTask are zeroed before returning.
  */
 static void
-vdbeSortSubtaskCleanup(sql * db, SortSubtask * pTask)
+vdbeSortSubtaskCleanup(SortSubtask * pTask)
 {
-	sqlDbFree(db, pTask->pUnpacked);
+	sql_free(pTask->pUnpacked);
 
 	assert(pTask->list.aMemory == 0);
-	vdbeSorterRecordFree(0, pTask->list.pList);
+	vdbeSorterRecordFree(pTask->list.pList);
 
 	if (pTask->file.pFd) {
 		sqlOsCloseFree(pTask->file.pFd);
@@ -948,23 +948,22 @@ vdbeIncrFree(IncrMerger * pIncr)
  * Reset a sorting cursor back to its original empty state.
  */
 void
-sqlVdbeSorterReset(sql * db, VdbeSorter * pSorter)
+sqlVdbeSorterReset(VdbeSorter * pSorter)
 {
 	(void)vdbeSorterJoinAll(pSorter, 0);
 	assert(pSorter->pReader == 0);
 	vdbeMergeEngineFree(pSorter->pMerger);
 	pSorter->pMerger = 0;
-	vdbeSortSubtaskCleanup(db, &pSorter->aTask);
+	vdbeSortSubtaskCleanup(&pSorter->aTask);
 	pSorter->aTask.pSorter = pSorter;
-	if (pSorter->list.aMemory == 0) {
-		vdbeSorterRecordFree(0, pSorter->list.pList);
-	}
+	if (pSorter->list.aMemory == 0)
+		vdbeSorterRecordFree(pSorter->list.pList);
 	pSorter->list.pList = 0;
 	pSorter->list.szPMA = 0;
 	pSorter->bUsePMA = 0;
 	pSorter->iMemory = 0;
 	pSorter->mxKeysize = 0;
-	sqlDbFree(db, pSorter->pUnpacked);
+	sql_free(pSorter->pUnpacked);
 	pSorter->pUnpacked = 0;
 }
 
@@ -972,15 +971,15 @@ sqlVdbeSorterReset(sql * db, VdbeSorter * pSorter)
  * Free any cursor components allocated by sqlVdbeSorterXXX routines.
  */
 void
-sqlVdbeSorterClose(sql * db, VdbeCursor * pCsr)
+sqlVdbeSorterClose(VdbeCursor * pCsr)
 {
 	VdbeSorter *pSorter;
 	assert(pCsr->eCurType == CURTYPE_SORTER);
 	pSorter = pCsr->uc.pSorter;
 	if (pSorter) {
-		sqlVdbeSorterReset(db, pSorter);
+		sqlVdbeSorterReset(pSorter);
 		sql_free(pSorter->list.aMemory);
-		sqlDbFree(db, pSorter);
+		sql_free(pSorter);
 		pCsr->uc.pSorter = 0;
 	}
 }
@@ -2092,7 +2091,7 @@ sqlVdbeSorterRewind(const VdbeCursor * pCsr, int *pbEof)
  * Advance to the next element in the sorter.
  */
 int
-sqlVdbeSorterNext(sql * db, const VdbeCursor * pCsr, int *pbEof)
+sqlVdbeSorterNext(const VdbeCursor * pCsr, int *pbEof)
 {
 	VdbeSorter *pSorter;
 	int rc;			/* Return code */
@@ -2111,7 +2110,7 @@ sqlVdbeSorterNext(sql * db, const VdbeCursor * pCsr, int *pbEof)
 		pSorter->list.pList = pFree->u.pNext;
 		pFree->u.pNext = 0;
 		if (pSorter->list.aMemory == 0)
-			vdbeSorterRecordFree(db, pFree);
+			vdbeSorterRecordFree(pFree);
 		*pbEof = !pSorter->list.pList;
 		rc = 0;
 	}

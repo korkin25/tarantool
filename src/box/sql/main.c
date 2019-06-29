@@ -177,14 +177,14 @@ sqlCloseSavepoints(Vdbe * pVdbe)
  * with SQL_ANY as the encoding.
  */
 static void
-functionDestroy(sql * db, FuncDef * p)
+functionDestroy(FuncDef * p)
 {
 	FuncDestructor *pDestructor = p->u.pDestructor;
 	if (pDestructor) {
 		pDestructor->nRef--;
 		if (pDestructor->nRef == 0) {
 			pDestructor->xDestroy(pDestructor->pUserData);
-			sqlDbFree(db, pDestructor);
+			sql_free(pDestructor);
 		}
 	}
 }
@@ -268,7 +268,7 @@ sqlCreateFunc(sql * db,
 	/* If an older version of the function with a configured destructor is
 	 * being replaced invoke the destructor function here.
 	 */
-	functionDestroy(db, p);
+	functionDestroy(p);
 
 	if (pDestructor) {
 		pDestructor->nRef++;
@@ -317,7 +317,7 @@ sql_create_function_v2(sql * db,
 	if (pArg && pArg->nRef == 0) {
 		assert(rc != 0);
 		xDestroy(p);
-		sqlDbFree(db, pArg);
+		sql_free(pArg);
 	}
 	return rc;
 }

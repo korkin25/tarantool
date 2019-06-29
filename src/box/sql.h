@@ -110,11 +110,10 @@ sql_trigger_compile(struct sql *db, const char *sql);
 
 /**
  * Free AST pointed by trigger.
- * @param db SQL handle.
  * @param trigger AST object.
  */
 void
-sql_trigger_delete(struct sql *db, struct sql_trigger *trigger);
+sql_trigger_delete(struct sql_trigger *trigger);
 
 /**
  * Get server triggers list by space_id.
@@ -212,12 +211,11 @@ sql_expr_dup(struct sql *db, struct Expr *p, int flags, char **buffer);
 
 /**
  * Free AST pointed by expr.
- * @param db SQL handle.
  * @param expr Root pointer of ASR
  * @param extern_alloc True if skeleton was allocated externally.
  */
 void
-sql_expr_delete(struct sql *db, struct Expr *expr, bool extern_alloc);
+sql_expr_delete(struct Expr *expr, bool extern_alloc);
 
 /**
  * Create and initialize a new ephemeral space object.
@@ -247,11 +245,10 @@ sql_expr_list_dup(struct sql *db, struct ExprList *p, int flags);
 
 /**
  * Free AST pointed by expr list.
- * @param db SQL handle.
  * @param expr_list Root pointer of ExprList.
  */
 void
-sql_expr_list_delete(struct sql *db, struct ExprList *expr_list);
+sql_expr_list_delete(struct ExprList *expr_list);
 
 /**
  * Add a new element to the end of an expression list.
@@ -305,11 +302,10 @@ sql_parser_destroy(struct Parse *parser);
  * Release memory allocated for given SELECT and all of its
  * substructures. It accepts NULL pointers.
  *
- * @param db Database handler.
  * @param select Select to be freed.
  */
 void
-sql_select_delete(struct sql *db, struct Select *select);
+sql_select_delete(struct Select *select);
 
 /**
  * Collect all table names within given select, including
@@ -346,7 +342,7 @@ sql_src_list_entry_name(const struct SrcList *list, int i);
 
 /** Delete an entire SrcList including all its substructure. */
 void
-sqlSrcListDelete(struct sql *db, struct SrcList *list);
+sqlSrcListDelete(struct SrcList *list);
 
 /**
  * Auxiliary VDBE structure to speed-up tuple data field access.

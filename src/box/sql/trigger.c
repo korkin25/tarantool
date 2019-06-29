@@ -46,18 +46,18 @@ int sqlSubProgramsRemaining;
  * Delete a linked list of TriggerStep structures.
  */
 void
-sqlDeleteTriggerStep(sql * db, TriggerStep * pTriggerStep)
+sqlDeleteTriggerStep(TriggerStep * pTriggerStep)
 {
 	while (pTriggerStep) {
 		TriggerStep *pTmp = pTriggerStep;
 		pTriggerStep = pTriggerStep->pNext;
 
-		sql_expr_delete(db, pTmp->pWhere, false);
-		sql_expr_list_delete(db, pTmp->pExprList);
-		sql_select_delete(db, pTmp->pSelect);
-		sqlIdListDelete(db, pTmp->pIdList);
+		sql_expr_delete(pTmp->pWhere, false);
+		sql_expr_list_delete(pTmp->pExprList);
+		sql_select_delete(pTmp->pSelect);
+		sqlIdListDelete(pTmp->pIdList);
 
-		sqlDbFree(db, pTmp);
+		sql_free(pTmp);
 	}
 }
 
@@ -139,12 +139,12 @@ sql_trigger_begin(struct Parse *parse)
 	parse->parsed_ast_type = AST_TYPE_TRIGGER;
 
  trigger_cleanup:
-	sqlDbFree(db, trigger_name);
-	sqlSrcListDelete(db, alter_def->entity_name);
-	sqlIdListDelete(db, trigger_def->cols);
-	sql_expr_delete(db, trigger_def->when, false);
+	sql_free(trigger_name);
+	sqlSrcListDelete(alter_def->entity_name);
+	sqlIdListDelete(trigger_def->cols);
+	sql_expr_delete(trigger_def->when, false);
 	if (parse->parsed_ast.trigger == NULL)
-		sql_trigger_delete(db, trigger);
+		sql_trigger_delete(trigger);
 	else
 		assert(parse->parsed_ast.trigger == trigger);
 
@@ -212,11 +212,11 @@ sql_trigger_finish(struct Parse *parse, struct TriggerStep *step_list,
 		char *data = mp_encode_map(opts_buff, 1);
 		data = mp_encode_str(data, "sql", sql_len);
 		data = mp_encode_str(data, sql_str, sql_str_len);
-		sqlDbFree(db, sql_str);
+		sql_free(sql_str);
 
 		trigger_name = sqlDbStrDup(db, trigger_name);
 		if (trigger_name == NULL) {
-			sqlDbFree(db, opts_buff);
+			sql_free(opts_buff);
 			goto cleanup;
 		}
 
@@ -240,9 +240,9 @@ sql_trigger_finish(struct Parse *parse, struct TriggerStep *step_list,
 	}
 
 cleanup:
-	sql_trigger_delete(db, trigger);
+	sql_trigger_delete(trigger);
 	assert(parse->parsed_ast.trigger == NULL || parse->parse_only);
-	sqlDeleteTriggerStep(db, step_list);
+	sqlDeleteTriggerStep(step_list);
 }
 
 struct TriggerStep *
@@ -251,7 +251,7 @@ sql_trigger_select_step(struct sql *db, struct Select *select)
 	struct TriggerStep *trigger_step =
 		sqlDbMallocZero(db, sizeof(struct TriggerStep));
 	if (trigger_step == NULL) {
-		sql_select_delete(db, select);
+		sql_select_delete(select);
 		diag_set(OutOfMemory, sizeof(struct TriggerStep),
 			 "sqlDbMallocZero", "trigger_step");
 		return NULL;
@@ -317,9 +317,9 @@ sql_trigger_insert_step(struct sql *db, struct Token *table_name,
 		trigger_step->pIdList = column_list;
 		trigger_step->orconf = orconf;
 	} else {
-		sqlIdListDelete(db, column_list);
+		sqlIdListDelete(column_list);
 	}
-	sql_select_delete(db, select);
+	sql_select_delete(select);
 	return trigger_step;
 }
 
@@ -336,8 +336,8 @@ sql_trigger_update_step(struct sql *db, struct Token *table_name,
 		trigger_step->pWhere = sqlExprDup(db, where, EXPRDUP_REDUCE);
 		trigger_step->orconf = orconf;
 	}
-	sql_expr_list_delete(db, new_list);
-	sql_expr_delete(db, where, false);
+	sql_expr_list_delete(new_list);
+	sql_expr_delete(where, false);
 	return trigger_step;
 }
 
@@ -351,20 +351,20 @@ sql_trigger_delete_step(struct sql *db, struct Token *table_name,
 		trigger_step->pWhere = sqlExprDup(db, where, EXPRDUP_REDUCE);
 		trigger_step->orconf = ON_CONFLICT_ACTION_DEFAULT;
 	}
-	sql_expr_delete(db, where, false);
+	sql_expr_delete(where, false);
 	return trigger_step;
 }
 
 void
-sql_trigger_delete(struct sql *db, struct sql_trigger *trigger)
+sql_trigger_delete(struct sql_trigger *trigger)
 {
 	if (trigger == NULL)
 		return;
-	sqlDeleteTriggerStep(db, trigger->step_list);
-	sqlDbFree(db, trigger->zName);
-	sql_expr_delete(db, trigger->pWhen, false);
-	sqlIdListDelete(db, trigger->pColumns);
-	sqlDbFree(db, trigger);
+	sqlDeleteTriggerStep(trigger->step_list);
+	sql_free(trigger->zName);
+	sql_expr_delete(trigger->pWhen, false);
+	sqlIdListDelete(trigger->pColumns);
+	sql_free(trigger);
 }
 
 void
@@ -426,7 +426,7 @@ sql_drop_trigger(struct Parse *parser)
 	vdbe_code_drop_trigger(parser, trigger_name, true);
 
  drop_trigger_cleanup:
-	sqlSrcListDelete(db, name);
+	sqlSrcListDelete(name);
 }
 
 int
@@ -657,7 +657,7 @@ codeTriggerProgram(Parse * pParse,	/* The parser context */
 				    sqlSelectDup(db, pStep->pSelect, 0);
 				sqlSelectDestInit(&sDest, SRT_Discard, 0, -1);
 				sqlSelect(pParse, pSelect, &sDest);
-				sql_select_delete(db, pSelect);
+				sql_select_delete(pSelect);
 				break;
 			}
 		}
@@ -790,7 +790,7 @@ sql_row_trigger_program(struct Parse *parser, struct sql_trigger *trigger,
 						   iEndTrigger,
 						   SQL_JUMPIFNULL);
 			}
-			sql_expr_delete(db, pWhen, false);
+			sql_expr_delete(pWhen, false);
 		}
 
 		/* Code the trigger program into the sub-vdbe. */
@@ -820,7 +820,7 @@ sql_row_trigger_program(struct Parse *parser, struct sql_trigger *trigger,
 
 	assert(!pSubParse->pTriggerPrg && !pSubParse->nMaxArg);
 	sql_parser_destroy(pSubParse);
-	sqlStackFree(db, pSubParse);
+	sqlStackFree(pSubParse);
 
 	return pPrg;
 }

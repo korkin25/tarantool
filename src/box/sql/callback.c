@@ -254,7 +254,7 @@ sqlFindFunction(sql * db,	/* An open database */
 		    (FuncDef *) sqlHashInsert(&db->aFunc, pBest->zName,
 						  pBest);
 		if (pOther == pBest) {
-			sqlDbFree(db, pBest);
+			sql_free(pBest);
 			sqlOomFault(db);
 			return 0;
 		} else {

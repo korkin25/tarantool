@@ -621,7 +621,7 @@ sqlPragma(Parse * pParse, Token * pId,	/* First part of [schema.]id field */
 		sqlVdbeVerifyNoResultRow(v);
 	}
  pragma_out:
-	sqlDbFree(db, zLeft);
-	sqlDbFree(db, zRight);
-	sqlDbFree(db, zTable);
+	sql_free(zLeft);
+	sql_free(zRight);
+	sql_free(zTable);
 }

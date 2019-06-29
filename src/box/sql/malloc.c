@@ -167,17 +167,6 @@ sql_free(void *p)
 }
 
 /*
- * Free memory that might be associated with a particular database
- * connection.
- */
-void
-sqlDbFree(sql * db, void *p)
-{
-	(void) db;
-	sql_free(p);
-}
-
-/*
  * Change the size of an existing memory allocation
  */
 void *
@@ -322,9 +311,8 @@ sqlDbReallocOrFree(sql * db, void *p, u64 n)
 {
 	void *pNew;
 	pNew = sqlDbRealloc(db, p, n);
-	if (!pNew) {
-		sqlDbFree(db, p);
-	}
+	if (!pNew)
+		sql_free(p);
 	return pNew;
 }
 

@@ -547,7 +547,7 @@ resolveP2Values(Vdbe * p, int *pMaxFuncArgs)
 			break;
 		pOp--;
 	}
-	sqlDbFree(p->db, pParse->aLabel);
+	sql_free(pParse->aLabel);
 	pParse->aLabel = 0;
 	pParse->nLabel = 0;
 	*pMaxFuncArgs = nMaxArgs;
@@ -655,43 +655,41 @@ sqlVdbeJumpHere(Vdbe * p, int addr)
  * the FuncDef is not ephermal, then do nothing.
  */
 static void
-freeEphemeralFunction(sql * db, FuncDef * pDef)
+freeEphemeralFunction(FuncDef * pDef)
 {
-	if ((pDef->funcFlags & SQL_FUNC_EPHEM) != 0) {
-		sqlDbFree(db, pDef);
-	}
+	if ((pDef->funcFlags & SQL_FUNC_EPHEM) != 0)
+		sql_free(pDef);
 }
 
-static void vdbeFreeOpArray(sql *, Op *, int);
+static void vdbeFreeOpArray(Op *, int);
 
 static SQL_NOINLINE void
-freeP4FuncCtx(sql * db, sql_context * p)
+freeP4FuncCtx(sql_context * p)
 {
-	freeEphemeralFunction(db, p->pFunc);
-	sqlDbFree(db, p);
+	freeEphemeralFunction(p->pFunc);
+	sql_free(p);
 }
 
 static void
-freeP4(sql * db, int p4type, void *p4)
+freeP4(int p4type, void *p4)
 {
-	assert(db);
 	switch (p4type) {
 	case P4_FUNCCTX:{
-			freeP4FuncCtx(db, (sql_context *) p4);
+			freeP4FuncCtx((sql_context *) p4);
 			break;
 		}
 	case P4_REAL:
 	case P4_INT64:
 	case P4_DYNAMIC:
 	case P4_INTARRAY:{
-			sqlDbFree(db, p4);
+			sql_free(p4);
 			break;
 		}
 	case P4_KEYINFO:
 		sql_key_info_unref(p4);
 		break;
 	case P4_FUNCDEF:{
-			freeEphemeralFunction(db, (FuncDef *) p4);
+			freeEphemeralFunction((FuncDef *) p4);
 			break;
 		}
 	case P4_MEM:
@@ -706,19 +704,19 @@ freeP4(sql * db, int p4type, void *p4)
  * nOp entries.
  */
 static void
-vdbeFreeOpArray(sql * db, Op * aOp, int nOp)
+vdbeFreeOpArray(Op * aOp, int nOp)
 {
 	if (aOp) {
 		Op *pOp;
 		for (pOp = aOp; pOp < &aOp[nOp]; pOp++) {
 			if (pOp->p4type)
-				freeP4(db, pOp->p4type, pOp->p4.p);
+				freeP4(pOp->p4type, pOp->p4.p);
 #ifdef SQL_ENABLE_EXPLAIN_COMMENTS
-			sqlDbFree(db, pOp->zComment);
+			sql_free(pOp->zComment);
 #endif
 		}
 	}
-	sqlDbFree(db, aOp);
+	sql_free(aOp);
 }
 
 /*
@@ -744,7 +742,7 @@ sqlVdbeChangeToNoop(Vdbe * p, int addr)
 		return 0;
 	assert(addr >= 0 && addr < p->nOp);
 	pOp = &p->aOp[addr];
-	freeP4(p->db, pOp->p4type, pOp->p4.p);
+	freeP4(pOp->p4type, pOp->p4.p);
 	pOp->p4type = P4_NOTUSED;
 	pOp->p4.z = 0;
 	pOp->opcode = OP_Noop;
@@ -783,7 +781,7 @@ static void SQL_NOINLINE
 vdbeChangeP4Full(Vdbe * p, Op * pOp, const char *zP4, int n)
 {
 	if (pOp->p4type) {
-		freeP4(p->db, pOp->p4type, pOp->p4.p);
+		freeP4(pOp->p4type, pOp->p4.p);
 		pOp->p4type = 0;
 		pOp->p4.p = 0;
 	}
@@ -807,7 +805,7 @@ sqlVdbeChangeP4(Vdbe * p, int addr, const char *zP4, int n)
 	assert(p->magic == VDBE_MAGIC_INIT);
 	assert(p->aOp != 0 || db->mallocFailed);
 	if (db->mallocFailed) {
-		freeP4(db, n, (void *)*(char **)&zP4);
+		freeP4(n, (void *)*(char **)&zP4);
 		return;
 	}
 	assert(p->nOp > 0);
@@ -852,7 +850,7 @@ sqlVdbeAppendP4(Vdbe * p, void *pP4, int n)
 	assert(n != P4_INT32);
 	assert(n <= 0);
 	if (p->db->mallocFailed) {
-		freeP4(p->db, n, pP4);
+		freeP4(n, pP4);
 	} else {
 		assert(pP4 != 0);
 		assert(p->nOp > 0);
@@ -890,7 +888,7 @@ vdbeVComment(Vdbe * p, const char *zFormat, va_list ap)
 	       || p->db->mallocFailed);
 	if (p->nOp) {
 		assert(p->aOp);
-		sqlDbFree(p->db, p->aOp[p->nOp - 1].zComment);
+		sql_free(p->aOp[p->nOp - 1].zComment);
 		p->aOp[p->nOp - 1].zComment =
 		    sqlVMPrintf(p->db, zFormat, ap);
 	}
@@ -1288,7 +1286,6 @@ releaseMemArray(Mem * p, int N)
 {
 	if (p && N) {
 		Mem *pEnd = &p[N];
-		sql *db = p->db;
 		do {
 			assert((&p[1]) == pEnd || p[0].db == p[1].db);
 			assert(sqlVdbeCheckMemInvariants(p));
@@ -1312,7 +1309,7 @@ releaseMemArray(Mem * p, int N)
 			    flags & (MEM_Agg | MEM_Dyn | MEM_Frame)) {
 				sqlVdbeMemRelease(p);
 			} else if (p->szMalloc) {
-				sqlDbFree(db, p->zMalloc);
+				sql_free(p->zMalloc);
 				p->szMalloc = 0;
 			}
 
@@ -1332,10 +1329,10 @@ sqlVdbeFrameDelete(VdbeFrame * p)
 	Mem *aMem = VdbeFrameMem(p);
 	VdbeCursor **apCsr = (VdbeCursor **) & aMem[p->nChildMem];
 	for (i = 0; i < p->nChildCsr; i++) {
-		sqlVdbeFreeCursor(p->v, apCsr[i]);
+		sqlVdbeFreeCursor(apCsr[i]);
 	}
 	releaseMemArray(aMem, p->nChildMem);
-	sqlDbFree(p->v->db, p);
+	sql_free(p);
 }
 
 /*
@@ -1741,14 +1738,14 @@ sqlVdbeMakeReady(Vdbe * p,	/* The VDBE */
  * happens to hold.
  */
 void
-sqlVdbeFreeCursor(Vdbe * p, VdbeCursor * pCx)
+sqlVdbeFreeCursor(VdbeCursor * pCx)
 {
 	if (pCx == 0) {
 		return;
 	}
 	switch (pCx->eCurType) {
 	case CURTYPE_SORTER:{
-			sqlVdbeSorterClose(p->db, pCx);
+			sqlVdbeSorterClose(pCx);
 			break;
 		}
 	case CURTYPE_TARANTOOL:{
@@ -1770,7 +1767,7 @@ closeCursorsInFrame(Vdbe * p)
 		for (i = 0; i < p->nCursor; i++) {
 			VdbeCursor *pC = p->apCsr[i];
 			if (pC) {
-				sqlVdbeFreeCursor(p, pC);
+				sqlVdbeFreeCursor(pC);
 				p->apCsr[i] = 0;
 			}
 		}
@@ -1877,7 +1874,7 @@ sqlVdbeSetNumCols(Vdbe * p, int nResColumn)
 	sql *db = p->db;
 
 	releaseMemArray(p->aColName, p->nResColumn * COLNAME_N);
-	sqlDbFree(db, p->aColName);
+	sql_free(p->aColName);
 	n = nResColumn * COLNAME_N;
 	p->nResColumn = (u16) nResColumn;
 	p->aColName = (Mem *) sqlDbMallocRawNN(db, sizeof(Mem) * n);
@@ -1894,7 +1891,7 @@ sqlVdbeSetNumCols(Vdbe * p, int nResColumn)
  *
  * The final parameter, xDel, must be one of SQL_DYNAMIC, SQL_STATIC
  * or SQL_TRANSIENT. If it is SQL_DYNAMIC, then the buffer pointed
- * to by zName will be freed by sqlDbFree() when the vdbe is destroyed.
+ * to by zName will be freed by sql_free() when the vdbe is destroyed.
  */
 int
 sqlVdbeSetColName(Vdbe * p,			/* Vdbe being configured */
@@ -2308,24 +2305,23 @@ sqlVdbeFinalize(Vdbe * p)
  * the database connection and frees the object itself.
  */
 void
-sqlVdbeClearObject(sql * db, Vdbe * p)
+sqlVdbeClearObject(Vdbe * p)
 {
 	SubProgram *pSub, *pNext;
-	assert(p->db == 0 || p->db == db);
 	releaseMemArray(p->aColName, p->nResColumn * COLNAME_N);
 	for (pSub = p->pProgram; pSub; pSub = pNext) {
 		pNext = pSub->pNext;
-		vdbeFreeOpArray(db, pSub->aOp, pSub->nOp);
-		sqlDbFree(db, pSub);
+		vdbeFreeOpArray(pSub->aOp, pSub->nOp);
+		sql_free(pSub);
 	}
 	if (p->magic != VDBE_MAGIC_INIT) {
 		releaseMemArray(p->aVar, p->nVar);
-		sqlDbFree(db, p->pVList);
-		sqlDbFree(db, p->pFree);
+		sql_free(p->pVList);
+		sql_free(p->pFree);
 	}
-	vdbeFreeOpArray(db, p->aOp, p->nOp);
-	sqlDbFree(db, p->aColName);
-	sqlDbFree(db, p->zSql);
+	vdbeFreeOpArray(p->aOp, p->nOp);
+	sql_free(p->aColName);
+	sql_free(p->zSql);
 }
 
 /*
@@ -2339,7 +2335,7 @@ sqlVdbeDelete(Vdbe * p)
 	if (NEVER(p == 0))
 		return;
 	db = p->db;
-	sqlVdbeClearObject(db, p);
+	sqlVdbeClearObject(p);
 	if (p->pPrev) {
 		p->pPrev->pNext = p->pNext;
 	} else {
@@ -2358,7 +2354,7 @@ sqlVdbeDelete(Vdbe * p)
 	 */
 	if (in_txn() == NULL)
 		fiber_gc();
-	sqlDbFree(db, p);
+	sql_free(p);
 }
 
 /*
@@ -2776,7 +2772,7 @@ sqlVdbeSerialGet(const unsigned char *buf,	/* Buffer to deserialize from */
  * The space is either allocated using sqlDbMallocRaw() or from within
  * the unaligned buffer passed via the second and third arguments (presumably
  * stack space). If the former, then *ppFree is set to a pointer that should
- * be eventually freed by the caller using sqlDbFree(). Or, if the
+ * be eventually freed by the caller using sql_free(). Or, if the
  * allocation comes from the pSpace/szSpace buffer, *ppFree is set to NULL
  * before returning.
  *

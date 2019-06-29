@@ -426,7 +426,7 @@ struct Vdbe {
 /*
  * Function prototypes
  */
-void sqlVdbeFreeCursor(Vdbe *, VdbeCursor *);
+void sqlVdbeFreeCursor(VdbeCursor *);
 void sqlVdbePopStack(Vdbe *, int);
 int sqlVdbeCursorRestore(VdbeCursor *);
 #if defined(SQL_DEBUG) || defined(VDBE_PROFILE)
@@ -492,10 +492,10 @@ void sqlVdbeFrameDelete(VdbeFrame *);
 int sqlVdbeFrameRestore(VdbeFrame *);
 
 int sqlVdbeSorterInit(struct sql *db, struct VdbeCursor *cursor);
-void sqlVdbeSorterReset(sql *, VdbeSorter *);
-void sqlVdbeSorterClose(sql *, VdbeCursor *);
+void sqlVdbeSorterReset(VdbeSorter *);
+void sqlVdbeSorterClose(VdbeCursor *);
 int sqlVdbeSorterRowkey(const VdbeCursor *, Mem *);
-int sqlVdbeSorterNext(sql *, const VdbeCursor *, int *);
+int sqlVdbeSorterNext(const VdbeCursor *, int *);
 int sqlVdbeSorterRewind(const VdbeCursor *, int *);
 int sqlVdbeSorterWrite(const VdbeCursor *, Mem *);
 int sqlVdbeSorterCompare(const VdbeCursor *, Mem *, int, int *);

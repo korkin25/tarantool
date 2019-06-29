@@ -71,10 +71,10 @@ sql_alter_table_rename(struct Parse *parse)
 	sqlVdbeAddOp4(v, OP_RenameTable, space->def->id, 0, 0, new_name,
 			  P4_DYNAMIC);
 exit_rename_table:
-	sqlSrcListDelete(db, src_tab);
+	sqlSrcListDelete(src_tab);
 	return;
 tnt_error:
-	sqlDbFree(db, new_name);
+	sql_free(new_name);
 	parse->is_aborted = true;
 	goto exit_rename_table;
 }

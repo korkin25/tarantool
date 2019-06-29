@@ -119,18 +119,18 @@ resolveAlias(Parse * pParse,	/* Parsing context */
 	 * prevents ExprDelete() from deleting the Expr structure itself,
 	 * allowing it to be repopulated by the memcpy() on the following line.
 	 * The pExpr->u.zToken might point into memory that will be freed by the
-	 * sqlDbFree(db, pDup) on the last line of this block, so be sure to
-	 * make a copy of the token before doing the sqlDbFree().
+	 * sql_free(pDup) on the last line of this block, so be sure to
+	 * make a copy of the token before doing the sql_free().
 	 */
 	ExprSetProperty(pExpr, EP_Static);
-	sql_expr_delete(db, pExpr, false);
+	sql_expr_delete(pExpr, false);
 	memcpy(pExpr, pDup, sizeof(*pExpr));
 	if (!ExprHasProperty(pExpr, EP_IntValue) && pExpr->u.zToken != 0) {
 		assert((pExpr->flags & (EP_Reduced | EP_TokenOnly)) == 0);
 		pExpr->u.zToken = sqlDbStrDup(db, pExpr->u.zToken);
 		pExpr->flags |= EP_MemToken;
 	}
-	sqlDbFree(db, pDup);
+	sql_free(pDup);
 }
 
 /*
@@ -213,7 +213,6 @@ lookupName(Parse * pParse,	/* The parsing context */
 	int cnt = 0;		/* Number of matching column names */
 	int cntTab = 0;		/* Number of matching table names */
 	int nSubquery = 0;	/* How many levels of subquery */
-	sql *db = pParse->db;	/* The database connection */
 	struct SrcList_item *pItem;	/* Use for looping over pSrcList items */
 	struct SrcList_item *pMatch = 0;	/* The matching pSrcList item */
 	NameContext *pTopNC = pNC;	/* First namecontext in the list */
@@ -456,9 +455,9 @@ lookupName(Parse * pParse,	/* The parsing context */
 
 	/* Clean up and return
 	 */
-	sql_expr_delete(db, pExpr->pLeft, false);
+	sql_expr_delete(pExpr->pLeft, false);
 	pExpr->pLeft = 0;
-	sql_expr_delete(db, pExpr->pRight, false);
+	sql_expr_delete(pExpr->pRight, false);
 	pExpr->pRight = 0;
 	pExpr->op = (isTrigger ? TK_TRIGGER : TK_COLUMN);
  lookupname_end:
@@ -961,7 +960,7 @@ resolveCompoundOrderBy(Parse * pParse,	/* Parsing context.  Leave error messages
 						    resolveOrderByTermToExprList
 						    (pParse, pSelect, pDup);
 					}
-					sql_expr_delete(db, pDup, false);
+					sql_expr_delete(pDup, false);
 				}
 			}
 			if (iCol > 0) {
@@ -986,7 +985,7 @@ resolveCompoundOrderBy(Parse * pParse,	/* Parsing context.  Leave error messages
 					assert(pParent->pLeft == pE);
 					pParent->pLeft = pNew;
 				}
-				sql_expr_delete(db, pE, false);
+				sql_expr_delete(pE, false);
 				pItem->u.x.iOrderByCol = (u16) iCol;
 				pItem->done = 1;
 			} else {
@@ -1335,7 +1334,7 @@ resolveSelectStep(Walker * pWalker, Select * p)
 			 * LIMIT but there is no reason to
 			 * restrict it directly).
 			 */
-			sql_expr_delete(db, p->pLimit, false);
+			sql_expr_delete(p->pLimit, false);
 			p->pLimit = sql_expr_new(db, TK_INTEGER,
 						 &sqlIntTokens[1]);
 			if (p->pLimit == NULL)

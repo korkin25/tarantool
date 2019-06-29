@@ -1012,13 +1012,11 @@ sql_expr_new_dequoted(struct sql *db, int op, const struct Token *token)
  * In that case, delete the subtrees pLeft and pRight.
  */
 void
-sqlExprAttachSubtrees(sql * db,
-			  Expr * pRoot, Expr * pLeft, Expr * pRight)
+sqlExprAttachSubtrees(Expr * pRoot, Expr * pLeft, Expr * pRight)
 {
 	if (pRoot == 0) {
-		assert(db->mallocFailed);
-		sql_expr_delete(db, pLeft, false);
-		sql_expr_delete(db, pRight, false);
+		sql_expr_delete(pLeft, false);
+		sql_expr_delete(pRight, false);
 	} else {
 		if (pRight) {
 			pRoot->pRight = pRight;
@@ -1062,7 +1060,7 @@ sqlPExpr(Parse * pParse,	/* Parsing context */
 			p->op = op & TKFLG_MASK;
 			p->iAgg = -1;
 		}
-		sqlExprAttachSubtrees(pParse->db, p, pLeft, pRight);
+		sqlExprAttachSubtrees(p, pLeft, pRight);
 	}
 	if (p) {
 		sqlExprCheckHeight(pParse, p->nHeight);
@@ -1083,7 +1081,7 @@ sqlPExprAddSelect(Parse * pParse, Expr * pExpr, Select * pSelect)
 		sqlExprSetHeightAndFlags(pParse, pExpr);
 	} else {
 		assert(pParse->db->mallocFailed);
-		sql_select_delete(pParse->db, pSelect);
+		sql_select_delete(pSelect);
 	}
 }
 
@@ -1117,15 +1115,15 @@ sql_and_expr_new(struct sql *db, struct Expr *left_expr,
 	} else if (right_expr == NULL) {
 		return left_expr;
 	} else if (exprAlwaysFalse(left_expr) || exprAlwaysFalse(right_expr)) {
-		sql_expr_delete(db, left_expr, false);
-		sql_expr_delete(db, right_expr, false);
+		sql_expr_delete(left_expr, false);
+		sql_expr_delete(right_expr, false);
 		struct Expr *f = sql_expr_new_anon(db, TK_FALSE);
 		if (f != NULL)
 			f->type = FIELD_TYPE_BOOLEAN;
 		return f;
 	} else {
 		struct Expr *new_expr = sql_expr_new_anon(db, TK_AND);
-		sqlExprAttachSubtrees(db, new_expr, left_expr, right_expr);
+		sqlExprAttachSubtrees(new_expr, left_expr, right_expr);
 		return new_expr;
 	}
 }
@@ -1141,7 +1139,7 @@ sqlExprFunction(Parse * pParse, ExprList * pList, Token * pToken)
 	assert(pToken != NULL);
 	struct Expr *new_expr = sql_expr_new_dequoted(db, TK_FUNCTION, pToken);
 	if (new_expr == NULL) {
-		sql_expr_list_delete(db, pList);
+		sql_expr_list_delete(pList);
 		pParse->is_aborted = true;
 		return NULL;
 	}
@@ -1250,7 +1248,7 @@ sqlExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
  * Recursively delete an expression tree.
  */
 static SQL_NOINLINE void
-sqlExprDeleteNN(sql * db, Expr * p, bool extern_alloc)
+sqlExprDeleteNN(Expr * p, bool extern_alloc)
 {
 	assert(p != 0);
 	/* Sanity check: Assert that the IntValue is non-negative if it exists */
@@ -1266,27 +1264,27 @@ sqlExprDeleteNN(sql * db, Expr * p, bool extern_alloc)
 		/* The Expr.x union is never used at the same time as Expr.pRight */
 		assert(p->x.pList == 0 || p->pRight == 0);
 		if (p->pLeft && p->op != TK_SELECT_COLUMN && !extern_alloc)
-			sqlExprDeleteNN(db, p->pLeft, extern_alloc);
+			sqlExprDeleteNN(p->pLeft, extern_alloc);
 		if (!extern_alloc)
-			sql_expr_delete(db, p->pRight, extern_alloc);
+			sql_expr_delete(p->pRight, extern_alloc);
 		if (ExprHasProperty(p, EP_xIsSelect)) {
-			sql_select_delete(db, p->x.pSelect);
+			sql_select_delete(p->x.pSelect);
 		} else {
-			sql_expr_list_delete(db, p->x.pList);
+			sql_expr_list_delete(p->x.pList);
 		}
 	}
 	if (ExprHasProperty(p, EP_MemToken))
-		sqlDbFree(db, p->u.zToken);
+		sql_free(p->u.zToken);
 	if (!ExprHasProperty(p, EP_Static)) {
-		sqlDbFree(db, p);
+		sql_free(p);
 	}
 }
 
 void
-sql_expr_delete(sql *db, Expr *expr, bool extern_alloc)
+sql_expr_delete(Expr *expr, bool extern_alloc)
 {
 	if (expr != NULL)
-		sqlExprDeleteNN(db, expr, extern_alloc);
+		sqlExprDeleteNN(expr, extern_alloc);
 }
 
 /*
@@ -1568,7 +1566,7 @@ sql_expr_list_dup(struct sql *db, struct ExprList *p, int flags)
 	}
 	pNew->a = pItem = sqlDbMallocRawNN(db, i * sizeof(p->a[0]));
 	if (pItem == NULL) {
-		sqlDbFree(db, pNew);
+		sql_free(pNew);
 		return NULL;
 	}
 	pOldItem = p->a;
@@ -1666,7 +1664,7 @@ sqlIdListDup(sql * db, IdList * p)
 	pNew->nId = p->nId;
 	pNew->a = sqlDbMallocRawNN(db, p->nId * sizeof(p->a[0]));
 	if (pNew->a == 0) {
-		sqlDbFree(db, pNew);
+		sql_free(pNew);
 		return 0;
 	}
 	/*
@@ -1749,8 +1747,8 @@ sql_expr_list_append(struct sql *db, struct ExprList *expr_list,
 
  no_mem:
 	/* Avoid leaking memory if malloc has failed. */
-	sql_expr_delete(db, expr, false);
-	sql_expr_list_delete(db, expr_list);
+	sql_expr_delete(expr, false);
+	sql_expr_list_delete(expr_list);
 	return NULL;
 }
 
@@ -1772,7 +1770,6 @@ sqlExprListAppendVector(Parse * pParse,	/* Parsing context */
 			    Expr * pExpr	/* Vector expression to be appended. Might be NULL */
     )
 {
-	sql *db = pParse->db;
 	int n;
 	int i;
 	int iFirst = pList ? pList->nExpr : 0;
@@ -1827,8 +1824,8 @@ sqlExprListAppendVector(Parse * pParse,	/* Parsing context */
 	}
 
  vector_append_error:
-	sql_expr_delete(db, pExpr, false);
-	sqlIdListDelete(db, pColumns);
+	sql_expr_delete(pExpr, false);
+	sqlIdListDelete(pColumns);
 	return pList;
 }
 
@@ -1917,7 +1914,7 @@ sqlExprListSetSpan(Parse * pParse,	/* Parsing context */
 		struct ExprList_item *pItem = &pList->a[pList->nExpr - 1];
 		assert(pList->nExpr > 0);
 		assert(db->mallocFailed || pItem->pExpr == pSpan->pExpr);
-		sqlDbFree(db, pItem->zSpan);
+		sql_free(pItem->zSpan);
 		pItem->zSpan = sqlDbStrNDup(db, (char *)pSpan->zStart,
 						(int)(pSpan->zEnd -
 						      pSpan->zStart));
@@ -1928,25 +1925,25 @@ sqlExprListSetSpan(Parse * pParse,	/* Parsing context */
  * Delete an entire expression list.
  */
 static SQL_NOINLINE void
-exprListDeleteNN(sql * db, ExprList * pList)
+exprListDeleteNN(ExprList * pList)
 {
 	int i;
 	struct ExprList_item *pItem;
 	assert(pList->a != 0 || pList->nExpr == 0);
 	for (pItem = pList->a, i = 0; i < pList->nExpr; i++, pItem++) {
-		sql_expr_delete(db, pItem->pExpr, false);
-		sqlDbFree(db, pItem->zName);
-		sqlDbFree(db, pItem->zSpan);
+		sql_expr_delete(pItem->pExpr, false);
+		sql_free(pItem->zName);
+		sql_free(pItem->zSpan);
 	}
-	sqlDbFree(db, pList->a);
-	sqlDbFree(db, pList);
+	sql_free(pList->a);
+	sql_free(pList);
 }
 
 void
-sql_expr_list_delete(sql *db, ExprList *expr_list)
+sql_expr_list_delete(ExprList *expr_list)
 {
 	if (expr_list != NULL)
-		exprListDeleteNN(db, expr_list);
+		exprListDeleteNN(expr_list);
 }
 
 /*
@@ -2635,7 +2632,7 @@ sqlFindInIndex(Parse * pParse,	/* Parsing context */
  * the types to be used for each column of the comparison.
  *
  * It is the responsibility of the caller to ensure that the returned
- * string is eventually freed using sqlDbFree().
+ * string is eventually freed using sql_free().
  */
 static enum field_type *
 expr_in_type(Parse *pParse, Expr *pExpr)
@@ -2782,13 +2779,11 @@ sqlCodeSubselect(Parse * pParse,	/* Parsing context */
 						 selFlags & SF_Distinct);
 					if (sqlSelect
 					    (pParse, pSelect, &dest)) {
-						sqlDbFree(pParse->db,
-							      dest.dest_type);
+						sql_free(dest.dest_type);
 						sql_key_info_unref(key_info);
 						return 0;
 					}
-					sqlDbFree(pParse->db,
-						      dest.dest_type);
+					sql_free(dest.dest_type);
 					assert(pEList != 0);
 					assert(pEList->nExpr > 0);
 					for (i = 0; i < nVal; i++) {
@@ -3230,8 +3225,8 @@ sqlExprCodeIN(Parse * pParse,	/* Parsing and code generating context */
 	sqlExprCachePop(pParse);
 	VdbeComment((v, "end IN expr"));
  sqlExprCodeIN_oom_error:
-	sqlDbFree(pParse->db, aiMap);
-	sqlDbFree(pParse->db, zAff);
+	sql_free(aiMap);
+	sql_free(zAff);
 }
 
 /*

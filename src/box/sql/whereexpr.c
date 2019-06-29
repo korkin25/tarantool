@@ -49,20 +49,20 @@ static void exprAnalyze(SrcList *, WhereClause *, int);
  * Deallocate all memory associated with a WhereOrInfo object.
  */
 static void
-whereOrInfoDelete(sql * db, WhereOrInfo * p)
+whereOrInfoDelete(WhereOrInfo * p)
 {
 	sqlWhereClauseClear(&p->wc);
-	sqlDbFree(db, p);
+	sql_free(p);
 }
 
 /*
  * Deallocate all memory associated with a WhereAndInfo object.
  */
 static void
-whereAndInfoDelete(sql * db, WhereAndInfo * p)
+whereAndInfoDelete(WhereAndInfo * p)
 {
 	sqlWhereClauseClear(&p->wc);
-	sqlDbFree(db, p);
+	sql_free(p);
 }
 
 /*
@@ -98,14 +98,14 @@ whereClauseInsert(WhereClause * pWC, Expr * p, u16 wtFlags)
 					 sizeof(pWC->a[0]) * pWC->nSlot * 2);
 		if (pWC->a == 0) {
 			if (wtFlags & TERM_DYNAMIC) {
-				sql_expr_delete(db, p, false);
+				sql_expr_delete(p, false);
 			}
 			pWC->a = pOld;
 			return 0;
 		}
 		memcpy(pWC->a, pOld, sizeof(pWC->a[0]) * pWC->nTerm);
 		if (pOld != pWC->aStatic) {
-			sqlDbFree(db, pOld);
+			sql_free(pOld);
 		}
 		pWC->nSlot = sqlMallocSize(pWC->a) / sizeof(pWC->a[0]);
 	}
@@ -812,7 +812,7 @@ exprAnalyzeOrTerm(SrcList * pSrc,	/* the FROM clause */
 				pTerm = &pWC->a[idxTerm];
 				markTermAsChild(pWC, idxNew, idxTerm);
 			} else {
-				sql_expr_list_delete(db, pList);
+				sql_expr_list_delete(pList);
 			}
 			pTerm->eOperator = WO_NOOP;	/* case 1 trumps case 3 */
 		}
@@ -1055,7 +1055,7 @@ exprAnalyze(SrcList * pSrc,	/* the FROM clause */
 				int idxNew;
 				pDup = sqlExprDup(db, pExpr, 0);
 				if (db->mallocFailed) {
-					sql_expr_delete(db, pDup, false);
+					sql_expr_delete(pDup, false);
 					return;
 				}
 				idxNew =
@@ -1390,19 +1390,18 @@ sqlWhereClauseClear(WhereClause * pWC)
 {
 	int i;
 	WhereTerm *a;
-	sql *db = pWC->pWInfo->pParse->db;
 	for (i = pWC->nTerm - 1, a = pWC->a; i >= 0; i--, a++) {
 		if (a->wtFlags & TERM_DYNAMIC) {
-			sql_expr_delete(db, a->pExpr, false);
+			sql_expr_delete(a->pExpr, false);
 		}
 		if (a->wtFlags & TERM_ORINFO) {
-			whereOrInfoDelete(db, a->u.pOrInfo);
+			whereOrInfoDelete(a->u.pOrInfo);
 		} else if (a->wtFlags & TERM_ANDINFO) {
-			whereAndInfoDelete(db, a->u.pAndInfo);
+			whereAndInfoDelete(a->u.pAndInfo);
 		}
 	}
 	if (pWC->a != pWC->aStatic) {
-		sqlDbFree(db, pWC->a);
+		sql_free(pWC->a);
 	}
 }
 

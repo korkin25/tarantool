@@ -254,7 +254,7 @@ space_def_destroy_fields(struct field_def *fields, uint32_t field_count,
 {
 	for (uint32_t i = 0; i < field_count; ++i) {
 		if (fields[i].default_value_expr != NULL) {
-			sql_expr_delete(sql_get(), fields[i].default_value_expr,
+			sql_expr_delete(fields[i].default_value_expr,
 					extern_alloc);
 		}
 	}

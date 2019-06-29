@@ -243,7 +243,7 @@ VdbeOp *sqlVdbeGetOp(Vdbe *, int);
 int sqlVdbeMakeLabel(Vdbe *);
 void sqlVdbeRunOnlyOnce(Vdbe *);
 void sqlVdbeDelete(Vdbe *);
-void sqlVdbeClearObject(sql *, Vdbe *);
+void sqlVdbeClearObject(Vdbe *);
 void sqlVdbeMakeReady(Vdbe *, Parse *);
 int sqlVdbeFinalize(Vdbe *);
 void sqlVdbeResolveLabel(Vdbe *, int);

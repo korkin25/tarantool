@@ -1721,10 +1721,10 @@ whereLoopClearUnion(WhereLoop * p)
  * Deallocate internal memory used by a WhereLoop object
  */
 static void
-whereLoopClear(sql * db, WhereLoop * p)
+whereLoopClear(WhereLoop * p)
 {
 	if (p->aLTerm != p->aLTermSpace)
-		sqlDbFree(db, p->aLTerm);
+		sql_free(p->aLTerm);
 	whereLoopClearUnion(p);
 	whereLoopInit(p);
 }
@@ -1744,7 +1744,7 @@ whereLoopResize(sql * db, WhereLoop * p, int n)
 		return -1;
 	memcpy(paNew, p->aLTerm, sizeof(p->aLTerm[0]) * p->nLSlot);
 	if (p->aLTerm != p->aLTermSpace)
-		sqlDbFree(db, p->aLTerm);
+		sql_free(p->aLTerm);
 	p->aLTerm = paNew;
 	p->nLSlot = n;
 	return 0;
@@ -1776,17 +1776,17 @@ whereLoopXfer(sql * db, WhereLoop * pTo, WhereLoop * pFrom)
  * Delete a WhereLoop object
  */
 static void
-whereLoopDelete(sql * db, WhereLoop * p)
+whereLoopDelete(WhereLoop * p)
 {
-	whereLoopClear(db, p);
-	sqlDbFree(db, p);
+	whereLoopClear(p);
+	sql_free(p);
 }
 
 /*
  * Free a WhereInfo structure
  */
 static void
-whereInfoFree(sql * db, WhereInfo * pWInfo)
+whereInfoFree(WhereInfo * pWInfo)
 {
 	if (ALWAYS(pWInfo)) {
 		int i;
@@ -1794,16 +1794,16 @@ whereInfoFree(sql * db, WhereInfo * pWInfo)
 			WhereLevel *pLevel = &pWInfo->a[i];
 			if (pLevel->pWLoop
 			    && (pLevel->pWLoop->wsFlags & WHERE_IN_ABLE)) {
-				sqlDbFree(db, pLevel->u.in.aInLoop);
+				sql_free(pLevel->u.in.aInLoop);
 			}
 		}
 		sqlWhereClauseClear(&pWInfo->sWC);
 		while (pWInfo->pLoops) {
 			WhereLoop *p = pWInfo->pLoops;
 			pWInfo->pLoops = p->pNextLoop;
-			whereLoopDelete(db, p);
+			whereLoopDelete(p);
 		}
-		sqlDbFree(db, pWInfo);
+		sql_free(pWInfo);
 	}
 }
 
@@ -2103,7 +2103,7 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 				whereLoopPrint(pToDel, pBuilder->pWC);
 			}
 #endif
-			whereLoopDelete(db, pToDel);
+			whereLoopDelete(pToDel);
 		}
 	}
 	rc = whereLoopXfer(db, p, pTemplate);
@@ -3102,7 +3102,7 @@ whereLoopAddAll(WhereLoopBuilder * pBuilder)
 			break;
 	}
 
-	whereLoopClear(db, pNew);
+	whereLoopClear(pNew);
 	return rc;
 }
 
@@ -3979,7 +3979,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 	pWInfo->nRowOut = pFrom->nRow;
 
 	/* Free temporary memory and return success */
-	sqlDbFree(db, pSpace);
+	sql_free(pSpace);
 	return 0;
 }
 
@@ -4284,7 +4284,7 @@ sqlWhereBegin(Parse * pParse,	/* The parser context */
 	    ROUND8(sizeof(WhereInfo) + (nTabList - 1) * sizeof(WhereLevel));
 	pWInfo = sqlDbMallocRawNN(db, nByteWInfo + sizeof(WhereLoop));
 	if (db->mallocFailed) {
-		sqlDbFree(db, pWInfo);
+		sql_free(pWInfo);
 		pWInfo = 0;
 		goto whereBeginError;
 	}
@@ -4651,7 +4651,7 @@ sqlWhereBegin(Parse * pParse,	/* The parser context */
  whereBeginError:
 	if (pWInfo) {
 		pParse->nQueryLoop = pWInfo->savedNQueryLoop;
-		whereInfoFree(db, pWInfo);
+		whereInfoFree(pWInfo);
 	}
 	return 0;
 }
@@ -4811,6 +4811,6 @@ sqlWhereEnd(WhereInfo * pWInfo)
 	/* Final cleanup
 	 */
 	pParse->nQueryLoop = pWInfo->savedNQueryLoop;
-	whereInfoFree(db, pWInfo);
+	whereInfoFree(pWInfo);
 	return;
 }

@@ -274,7 +274,7 @@ sqlInsert(Parse * pParse,	/* Parser context */
 	    && pSelect->pPrior == 0) {
 		pList = pSelect->pEList;
 		pSelect->pEList = 0;
-		sql_select_delete(db, pSelect);
+		sql_select_delete(pSelect);
 		pSelect = 0;
 	}
 
@@ -789,11 +789,11 @@ sqlInsert(Parse * pParse,	/* Parser context */
 	}
 
  insert_cleanup:
-	sqlSrcListDelete(db, pTabList);
-	sql_expr_list_delete(db, pList);
-	sql_select_delete(db, pSelect);
-	sqlIdListDelete(db, pColumn);
-	sqlDbFree(db, aRegIdx);
+	sqlSrcListDelete(pTabList);
+	sql_expr_list_delete(pList);
+	sql_select_delete(pSelect);
+	sqlIdListDelete(pColumn);
+	sql_free(aRegIdx);
 }
 
 void

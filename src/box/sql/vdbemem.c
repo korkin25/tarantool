@@ -122,7 +122,7 @@ sqlVdbeMemGrow(Mem * pMem, int n, int bPreserve)
 			bPreserve = 0;
 		} else {
 			if (pMem->szMalloc > 0)
-				sqlDbFree(pMem->db, pMem->zMalloc);
+				sql_free(pMem->zMalloc);
 			pMem->zMalloc = sqlDbMallocRaw(pMem->db, n);
 		}
 		if (pMem->zMalloc == 0) {
@@ -329,7 +329,7 @@ sqlVdbeMemFinalize(Mem * pMem, FuncDef * pFunc)
 		pFunc->xFinalize(&ctx);	/* IMP: R-24505-23230 */
 		assert((pMem->flags & MEM_Dyn) == 0);
 		if (pMem->szMalloc > 0)
-			sqlDbFree(pMem->db, pMem->zMalloc);
+			sql_free(pMem->zMalloc);
 		memcpy(pMem, &t, sizeof(t));
 		if (ctx.is_aborted)
 			return -1;
@@ -381,7 +381,7 @@ vdbeMemClear(Mem * p)
 		vdbeMemClearExternAndSetNull(p);
 	}
 	if (p->szMalloc) {
-		sqlDbFree(p->db, p->zMalloc);
+		sql_free(p->zMalloc);
 		p->szMalloc = 0;
 	}
 	p->z = 0;
@@ -1191,7 +1191,7 @@ valueNew(sql * db, struct ValueNewStat4Ctx *p)
 				return NULL;
 			pRec->key_def = key_def_dup(idx->key_def);
 			if (pRec->key_def == NULL) {
-				sqlDbFree(db, pRec);
+				sql_free(pRec);
 				sqlOomFault(db);
 				return NULL;
 			}
@@ -1300,7 +1300,7 @@ valueFromFunction(sql * db,	/* The database connection */
 		for (i = 0; i < nVal; i++) {
 			sqlValueFree(apVal[i]);
 		}
-		sqlDbFree(db, apVal);
+		sql_free(apVal);
 	}
 
 	*ppVal = pVal;
@@ -1438,7 +1438,7 @@ valueFromExpr(sql * db,	/* The database connection */
 
  no_mem:
 	sqlOomFault(db);
-	sqlDbFree(db, zVal);
+	sql_free(zVal);
 	assert(*ppVal == 0);
 	if (pCtx == 0)
 		sqlValueFree(pVal);
@@ -1499,7 +1499,7 @@ recordFunc(sql_context * context, int argc, sql_value ** argv)
 		putVarint32(&aRet[1], iSerial);
 		sqlVdbeSerialPut(&aRet[1 + nSerial], argv[0], iSerial);
 		sql_result_blob(context, aRet, nRet, SQL_TRANSIENT);
-		sqlDbFree(db, aRet);
+		sql_free(aRet);
 	}
 }
 
@@ -1713,7 +1713,7 @@ sqlStat4ProbeFree(UnpackedRecord * pRec)
 		struct Mem *aMem = pRec->aMem;
 		for (int i = 0; i < part_count; i++)
 			sqlVdbeMemRelease(&aMem[i]);
-		sqlDbFree(aMem[0].db, pRec);
+		sql_free(pRec);
 	}
 }
 
@@ -1740,7 +1740,7 @@ sqlValueFree(sql_value * v)
 	if (!v)
 		return;
 	sqlVdbeMemRelease((Mem *) v);
-	sqlDbFree(((Mem *) v)->db, v);
+	sql_free(v);
 }
 
 /*

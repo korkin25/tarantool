@@ -186,11 +186,10 @@ struct Stat4Accum {
 /* Reclaim memory used by a Stat4Sample
  */
 static void
-sampleClear(sql * db, Stat4Sample * p)
+sampleClear(Stat4Sample * p)
 {
-	assert(db != 0);
 	if (p->nKey) {
-		sqlDbFree(db, p->aKey);
+		sql_free(p->aKey);
 		p->nKey = 0;
 	}
 }
@@ -202,7 +201,7 @@ sampleSetKey(sql * db, Stat4Sample * p, int n, const u8 * pData)
 {
 	assert(db != 0);
 	if (p->nKey)
-		sqlDbFree(db, p->aKey);
+		sql_free(p->aKey);
 	p->aKey = sqlDbMallocRawNN(db, n);
 	if (p->aKey) {
 		p->nKey = n;
@@ -236,11 +235,11 @@ stat4Destructor(void *pOld)
 	Stat4Accum *p = (Stat4Accum *) pOld;
 	int i;
 	for (i = 0; i < p->nCol; i++)
-		sampleClear(p->db, p->aBest + i);
+		sampleClear(p->aBest + i);
 	for (i = 0; i < p->mxSample; i++)
-		sampleClear(p->db, p->a + i);
-	sampleClear(p->db, &p->current);
-	sqlDbFree(p->db, p);
+		sampleClear(p->a + i);
+	sampleClear(&p->current);
+	sql_free(p);
 }
 
 /*
@@ -462,7 +461,7 @@ sampleInsert(Stat4Accum * p, Stat4Sample * pNew, int nEqZero)
 		tRowcnt *anEq = pMin->anEq;
 		tRowcnt *anLt = pMin->anLt;
 		tRowcnt *anDLt = pMin->anDLt;
-		sampleClear(p->db, pMin);
+		sampleClear(pMin);
 		memmove(pMin, &pMin[1],
 			sizeof(p->a[0]) * (p->nSample - p->iMin - 1));
 		pSample = &p->a[p->nSample - 1];
@@ -1135,7 +1134,7 @@ sqlAnalyze(Parse * pParse, Token * pName)
 			diag_set(ClientError, ER_NO_SUCH_SPACE, z);
 			pParse->is_aborted = true;
 		}
-		sqlDbFree(db, z);
+		sql_free(z);
 	}
 	struct Vdbe *v = sqlGetVdbe(pParse);
 	if (v != NULL)

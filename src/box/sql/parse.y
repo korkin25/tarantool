@@ -188,7 +188,7 @@ create_table_args ::= LP columnlist RP. {
  *
  * create_table_args ::= AS select(S). {
  *   sqlEndTable(pParse);
- *   sql_select_delete(pParse->db, S);
+ *   sql_select_delete(S);
  * }
  */
 
@@ -413,15 +413,15 @@ cmd ::= select(X).  {
           sqlSelect(pParse, X, &dest);
   else
           sql_expr_extract_select(pParse, X);
-  sql_select_delete(pParse->db, X);
+  sql_select_delete(X);
 }
 
 %type select {Select*}
-%destructor select {sql_select_delete(pParse->db, $$);}
+%destructor select {sql_select_delete($$);}
 %type selectnowith {Select*}
-%destructor selectnowith {sql_select_delete(pParse->db, $$);}
+%destructor selectnowith {sql_select_delete($$);}
 %type oneselect {Select*}
-%destructor oneselect {sql_select_delete(pParse->db, $$);}
+%destructor oneselect {sql_select_delete($$);}
 
 %include {
   /**
@@ -456,7 +456,7 @@ select(A) ::= with(W) selectnowith(X). {
     p->pWith = W;
     parserDoubleLinkSelect(pParse, p);
   }else{
-    sqlWithDelete(pParse->db, W);
+    sqlWithDelete(W);
   }
   A = p; /*A-overwrites-W*/
 }
@@ -481,7 +481,7 @@ selectnowith(A) ::= selectnowith(A) multiselect_op(Y) oneselect(Z).  {
     pRhs->selFlags &= ~SF_MultiValue;
     if( Y!=TK_ALL ) pParse->hasCompound = 1;
   }else{
-    sql_select_delete(pParse->db, pLhs);
+    sql_select_delete(pLhs);
   }
   A = pRhs;
 }
@@ -526,7 +526,7 @@ oneselect(A) ::= SELECT(S) distinct(D) selcollist(W) from(X) where_opt(Y)
 oneselect(A) ::= values(A).
 
 %type values {Select*}
-%destructor values {sql_select_delete(pParse->db, $$);}
+%destructor values {sql_select_delete($$);}
 values(A) ::= VALUES LP nexprlist(X) RP. {
   A = sqlSelectNew(pParse,X,0,0,0,0,0,SF_Values,0,0);
 }
@@ -557,9 +557,9 @@ distinct(A) ::= .           {A = 0;}
 // opcode of TK_ASTERISK.
 //
 %type selcollist {ExprList*}
-%destructor selcollist {sql_expr_list_delete(pParse->db, $$);}
+%destructor selcollist {sql_expr_list_delete($$);}
 %type sclp {ExprList*}
-%destructor sclp {sql_expr_list_delete(pParse->db, $$);}
+%destructor sclp {sql_expr_list_delete($$);}
 sclp(A) ::= selcollist(A) COMMA.
 sclp(A) ::= .                                {A = 0;}
 selcollist(A) ::= sclp(A) expr(X) as(Y).     {
@@ -596,11 +596,11 @@ as(X) ::= .            {X.n = 0; X.z = 0;}
 
 
 %type seltablist {SrcList*}
-%destructor seltablist {sqlSrcListDelete(pParse->db, $$);}
+%destructor seltablist {sqlSrcListDelete($$);}
 %type stl_prefix {SrcList*}
-%destructor stl_prefix {sqlSrcListDelete(pParse->db, $$);}
+%destructor stl_prefix {sqlSrcListDelete($$);}
 %type from {SrcList*}
-%destructor from {sqlSrcListDelete(pParse->db, $$);}
+%destructor from {sqlSrcListDelete($$);}
 
 // A complete FROM clause.
 //
@@ -625,7 +625,7 @@ seltablist(A) ::= stl_prefix(A) nm(Y) as(Z) indexed_opt(I)
 seltablist(A) ::= stl_prefix(A) nm(Y) LP exprlist(E) RP as(Z)
                   on_opt(N) using_opt(U). {
   A = sqlSrcListAppendFromTerm(pParse,A,&Y,&Z,0,N,U);
-  sqlSrcListFuncArgs(pParse, A, E);
+  sqlSrcListFuncArgs(A, E);
 }
 seltablist(A) ::= stl_prefix(A) LP select(S) RP
                   as(Z) on_opt(N) using_opt(U). {
@@ -645,7 +645,7 @@ seltablist(A) ::= stl_prefix(A) LP seltablist(F) RP
       pOld->zName =  0;
       pOld->pSelect = 0;
     }
-    sqlSrcListDelete(pParse->db, F);
+    sqlSrcListDelete(F);
   }else{
     Select *pSubquery;
     sqlSrcListShiftJoinType(F);
@@ -655,7 +655,7 @@ seltablist(A) ::= stl_prefix(A) LP seltablist(F) RP
 }
 
 %type fullname {SrcList*}
-%destructor fullname {sqlSrcListDelete(pParse->db, $$);}
+%destructor fullname {sqlSrcListDelete($$);}
 fullname(A) ::= nm(X). {
   /* A-overwrites-X. */
   A = sql_src_list_append(pParse->db,0,&X);
@@ -678,7 +678,7 @@ joinop(X) ::= JOIN_KW(A) join_nm(B) join_nm(C) JOIN.
                   {X = sqlJoinType(pParse,&A,&B,&C);/*X-overwrites-A*/}
 
 %type on_opt {Expr*}
-%destructor on_opt {sql_expr_delete(pParse->db, $$, false);}
+%destructor on_opt {sql_expr_delete($$, false);}
 on_opt(N) ::= ON expr(E).   {N = E.pExpr;}
 on_opt(N) ::= .             {N = 0;}
 
@@ -698,20 +698,20 @@ indexed_opt(A) ::= INDEXED BY nm(X). {A = X;}
 indexed_opt(A) ::= NOT INDEXED.      {A.z=0; A.n=1;}
 
 %type using_opt {IdList*}
-%destructor using_opt {sqlIdListDelete(pParse->db, $$);}
+%destructor using_opt {sqlIdListDelete($$);}
 using_opt(U) ::= USING LP idlist(L) RP.  {U = L;}
 using_opt(U) ::= .                        {U = 0;}
 
 
 %type orderby_opt {ExprList*}
-%destructor orderby_opt {sql_expr_list_delete(pParse->db, $$);}
+%destructor orderby_opt {sql_expr_list_delete($$);}
 
 // the sortlist non-terminal stores a list of expression where each
 // expression is optionally followed by ASC or DESC to indicate the
 // sort order.
 //
 %type sortlist {ExprList*}
-%destructor sortlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor sortlist {sql_expr_list_delete($$);}
 
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
@@ -732,12 +732,12 @@ sortorder(A) ::= DESC.          {A = SORT_ORDER_DESC;}
 sortorder(A) ::= .              {A = SORT_ORDER_UNDEF;}
 
 %type groupby_opt {ExprList*}
-%destructor groupby_opt {sql_expr_list_delete(pParse->db, $$);}
+%destructor groupby_opt {sql_expr_list_delete($$);}
 groupby_opt(A) ::= .                      {A = 0;}
 groupby_opt(A) ::= GROUP BY nexprlist(X). {A = X;}
 
 %type having_opt {Expr*}
-%destructor having_opt {sql_expr_delete(pParse->db, $$, false);}
+%destructor having_opt {sql_expr_delete($$, false);}
 having_opt(A) ::= .                {A = 0;}
 having_opt(A) ::= HAVING expr(X).  {A = X.pExpr;}
 
@@ -779,7 +779,7 @@ cmd ::= TRUNCATE TABLE fullname(X). {
 }
 
 %type where_opt {Expr*}
-%destructor where_opt {sql_expr_delete(pParse->db, $$, false);}
+%destructor where_opt {sql_expr_delete($$, false);}
 
 where_opt(A) ::= .                    {A = 0;}
 where_opt(A) ::= WHERE expr(X).       {A = X.pExpr;}
@@ -802,7 +802,7 @@ cmd ::= with(C) UPDATE orconf(R) fullname(X) indexed_opt(I) SET setlist(Y)
 }
 
 %type setlist {ExprList*}
-%destructor setlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor setlist {sql_expr_list_delete($$);}
 
 setlist(A) ::= setlist(A) COMMA nm(X) EQ expr(Y). {
   A = sql_expr_list_append(pParse->db, A, Y.pExpr);
@@ -842,9 +842,9 @@ insert_cmd(A) ::= INSERT orconf(R).   {A = R;}
 insert_cmd(A) ::= REPLACE.            {A = ON_CONFLICT_ACTION_REPLACE;}
 
 %type idlist_opt {IdList*}
-%destructor idlist_opt {sqlIdListDelete(pParse->db, $$);}
+%destructor idlist_opt {sqlIdListDelete($$);}
 %type idlist {IdList*}
-%destructor idlist {sqlIdListDelete(pParse->db, $$);}
+%destructor idlist {sqlIdListDelete($$);}
 
 idlist_opt(A) ::= .                       {A = 0;}
 idlist_opt(A) ::= LP idlist(X) RP.    {A = X;}
@@ -868,9 +868,9 @@ idlist(A) ::= nm(Y). {
 //
 
 %type expr {ExprSpan}
-%destructor expr {sql_expr_delete(pParse->db, $$.pExpr, false);}
+%destructor expr {sql_expr_delete($$.pExpr, false);}
 %type term {ExprSpan}
-%destructor term {sql_expr_delete(pParse->db, $$.pExpr, false);}
+%destructor term {sql_expr_delete($$.pExpr, false);}
 
 %include {
   /* This is a utility routine used to set the ExprSpan.zStart and
@@ -951,7 +951,7 @@ idlist(A) ::= nm(Y). {
     pOut->zEnd = &t.z[t.n];
     return;
 tarantool_error:
-    sqlDbFree(pParse->db, p);
+    sql_free(p);
     pParse->is_aborted = true;
   }
 }
@@ -970,7 +970,7 @@ expr(A) ::= nm(X) DOT nm(Y). {
   }
   struct Expr *temp2 = sql_expr_new_dequoted(pParse->db, TK_ID, &Y);
   if (temp2 == NULL) {
-    sql_expr_delete(pParse->db, temp1, false);
+    sql_expr_delete(temp1, false);
     pParse->is_aborted = true;
     return;
   }
@@ -1032,7 +1032,7 @@ expr(A) ::= CAST(X) LP expr(E) AS typedef(T) RP(Y). {
     return;
   }
   A.pExpr->type = T.type;
-  sqlExprAttachSubtrees(pParse->db, A.pExpr, E.pExpr, 0);
+  sqlExprAttachSubtrees(A.pExpr, E.pExpr, 0);
 }
 
 expr(A) ::= TRIM(X) LP trim_operands(Y) RP(E). {
@@ -1041,7 +1041,7 @@ expr(A) ::= TRIM(X) LP trim_operands(Y) RP(E). {
 }
 
 %type trim_operands {struct ExprList *}
-%destructor trim_operands {sql_expr_list_delete(pParse->db, $$);}
+%destructor trim_operands {sql_expr_list_delete($$);}
 
 trim_operands(A) ::= trim_from_clause(F) expr(Y). {
   A = sql_expr_list_append(pParse->db, F, Y.pExpr);
@@ -1052,7 +1052,7 @@ trim_operands(A) ::= expr(Y). {
 }
 
 %type trim_from_clause {struct ExprList *}
-%destructor trim_from_clause {sql_expr_list_delete(pParse->db, $$);}
+%destructor trim_from_clause {sql_expr_list_delete($$);}
 
 /*
  * The following two rules cover three cases of keyword
@@ -1072,7 +1072,7 @@ trim_from_clause(A) ::= trim_specification(N) expr_optional(Y) FROM. {
 }
 
 %type expr_optional {struct Expr *}
-%destructor expr_optional {sql_expr_delete(pParse->db, $$, false);}
+%destructor expr_optional {sql_expr_delete($$, false);}
 
 expr_optional(A) ::= .        { A = NULL; }
 expr_optional(A) ::= expr(X). { A = X.pExpr; }
@@ -1160,7 +1160,7 @@ expr(A) ::= LP(L) nexprlist(X) COMMA expr(Y) RP(R). {
     A.pExpr->x.pList = pList;
     spanSet(&A, &L, &R);
   }else{
-    sql_expr_list_delete(pParse->db, pList);
+    sql_expr_list_delete(pList);
   }
 }
 
@@ -1261,7 +1261,7 @@ expr(A) ::= expr(A) between_op(N) expr(X) AND expr(Y). [BETWEEN] {
   if( A.pExpr ){
     A.pExpr->x.pList = pList;
   }else{
-    sql_expr_list_delete(pParse->db, pList);
+    sql_expr_list_delete(pList);
   } 
   exprNot(pParse, N, &A);
   A.zEnd = Y.zEnd;
@@ -1279,7 +1279,7 @@ expr(A) ::= expr(A) in_op(N) LP exprlist(Y) RP(E). [IN] {
     ** simplify to constants 0 (false) and 1 (true), respectively,
     ** regardless of the value of expr1.
     */
-    sql_expr_delete(pParse->db, A.pExpr, false);
+    sql_expr_delete(A.pExpr, false);
     int tk = N == 0 ? TK_FALSE : TK_TRUE;
     A.pExpr = sql_expr_new_anon(pParse->db, tk);
     if (A.pExpr == NULL) {
@@ -1301,7 +1301,7 @@ expr(A) ::= expr(A) in_op(N) LP exprlist(Y) RP(E). [IN] {
     */
     Expr *pRHS = Y->a[0].pExpr;
     Y->a[0].pExpr = 0;
-    sql_expr_list_delete(pParse->db, Y);
+    sql_expr_list_delete(Y);
     A.pExpr = sqlPExpr(pParse, N ? TK_NE : TK_EQ, A.pExpr, pRHS);
   }else{
     A.pExpr = sqlPExpr(pParse, TK_IN, A.pExpr, 0);
@@ -1309,7 +1309,7 @@ expr(A) ::= expr(A) in_op(N) LP exprlist(Y) RP(E). [IN] {
       A.pExpr->x.pList = Y;
       sqlExprSetHeightAndFlags(pParse, A.pExpr);
     }else{
-      sql_expr_list_delete(pParse->db, Y);
+      sql_expr_list_delete(Y);
     }
     exprNot(pParse, N, &A);
   }
@@ -1333,7 +1333,7 @@ expr(A) ::= expr(A) in_op(N) nm(Y) paren_exprlist(E). [IN] {
     return;
   }
   Select *pSelect = sqlSelectNew(pParse, 0,pSrc,0,0,0,0,0,0,0);
-  if( E )  sqlSrcListFuncArgs(pParse, pSelect ? pSrc : 0, E);
+  if( E )  sqlSrcListFuncArgs(pSelect ? pSrc : 0, E);
   A.pExpr = sqlPExpr(pParse, TK_IN, A.pExpr, 0);
   sqlPExprAddSelect(pParse, A.pExpr, pSelect);
   exprNot(pParse, N, &A);
@@ -1354,12 +1354,12 @@ expr(A) ::= CASE(C) expr_optional(X) case_exprlist(Y) case_else(Z) END(E). {
     A.pExpr->x.pList = Z ? sql_expr_list_append(pParse->db,Y,Z) : Y;
     sqlExprSetHeightAndFlags(pParse, A.pExpr);
   }else{
-    sql_expr_list_delete(pParse->db, Y);
-    sql_expr_delete(pParse->db, Z, false);
+    sql_expr_list_delete(Y);
+    sql_expr_delete(Z, false);
   }
 }
 %type case_exprlist {ExprList*}
-%destructor case_exprlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor case_exprlist {sql_expr_list_delete($$);}
 case_exprlist(A) ::= case_exprlist(A) WHEN expr(Y) THEN expr(Z). {
   A = sql_expr_list_append(pParse->db,A, Y.pExpr);
   A = sql_expr_list_append(pParse->db,A, Z.pExpr);
@@ -1369,14 +1369,14 @@ case_exprlist(A) ::= WHEN expr(Y) THEN expr(Z). {
   A = sql_expr_list_append(pParse->db,A, Z.pExpr);
 }
 %type case_else {Expr*}
-%destructor case_else {sql_expr_delete(pParse->db, $$, false);}
+%destructor case_else {sql_expr_delete($$, false);}
 case_else(A) ::=  ELSE expr(X).         {A = X.pExpr;}
 case_else(A) ::=  .                     {A = 0;} 
 
 %type exprlist {ExprList*}
-%destructor exprlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor exprlist {sql_expr_list_delete($$);}
 %type nexprlist {ExprList*}
-%destructor nexprlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor nexprlist {sql_expr_list_delete($$);}
 
 exprlist(A) ::= nexprlist(A).
 exprlist(A) ::= .                            {A = 0;}
@@ -1388,7 +1388,7 @@ nexprlist(A) ::= expr(Y).
 /* A paren_exprlist is an optional expression list contained inside
 ** of parenthesis */
 %type paren_exprlist {ExprList*}
-%destructor paren_exprlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor paren_exprlist {sql_expr_list_delete($$);}
 paren_exprlist(A) ::= .   {A = 0;}
 paren_exprlist(A) ::= LP exprlist(X) RP.  {A = X;}
 
@@ -1421,9 +1421,9 @@ uniqueflag(A) ::= .        {A = SQL_INDEX_TYPE_NON_UNIQUE;}
 // used for the arguments to an index.  That is just an historical accident.
 //
 %type eidlist {ExprList*}
-%destructor eidlist {sql_expr_list_delete(pParse->db, $$);}
+%destructor eidlist {sql_expr_list_delete($$);}
 %type eidlist_opt {ExprList*}
-%destructor eidlist_opt {sql_expr_list_delete(pParse->db, $$);}
+%destructor eidlist_opt {sql_expr_list_delete($$);}
 
 %include {
   /* Add a single new term to an ExprList that is used to store a
@@ -1522,7 +1522,7 @@ trigger_time(A) ::= INSTEAD OF.  { A = TK_INSTEAD;}
 trigger_time(A) ::= .            { A = TK_BEFORE; }
 
 %type trigger_event {struct TrigEvent}
-%destructor trigger_event {sqlIdListDelete(pParse->db, $$.b);}
+%destructor trigger_event {sqlIdListDelete($$.b);}
 trigger_event(A) ::= DELETE|INSERT(X).   {A.a = @X; /*A-overwrites-X*/ A.b = 0;}
 trigger_event(A) ::= UPDATE(X).          {A.a = @X; /*A-overwrites-X*/ A.b = 0;}
 trigger_event(A) ::= UPDATE OF idlist(X).{A.a = TK_UPDATE; A.b = X;}
@@ -1535,12 +1535,12 @@ foreach_clause ::= . {
 foreach_clause ::= FOR EACH ROW.
 
 %type when_clause {Expr*}
-%destructor when_clause {sql_expr_delete(pParse->db, $$, false);}
+%destructor when_clause {sql_expr_delete($$, false);}
 when_clause(A) ::= .             { A = 0; }
 when_clause(A) ::= WHEN expr(X). { A = X.pExpr; }
 
 %type trigger_cmd_list {TriggerStep*}
-%destructor trigger_cmd_list {sqlDeleteTriggerStep(pParse->db, $$);}
+%destructor trigger_cmd_list {sqlDeleteTriggerStep($$);}
 trigger_cmd_list(A) ::= trigger_cmd_list(A) trigger_cmd(X) SEMI. {
   assert( A!=0 );
   A->pLast->pNext = X;
@@ -1584,7 +1584,7 @@ tridxby ::= NOT INDEXED. {
 
 
 %type trigger_cmd {TriggerStep*}
-%destructor trigger_cmd {sqlDeleteTriggerStep(pParse->db, $$);}
+%destructor trigger_cmd {sqlDeleteTriggerStep($$);}
 // UPDATE 
 trigger_cmd(A) ::=
    UPDATE orconf(R) trnm(X) tridxby SET setlist(Y) where_opt(Z). {
@@ -1703,8 +1703,8 @@ cmd ::= ALTER TABLE fullname(X) DROP CONSTRAINT nm(Z). {
 //////////////////////// COMMON TABLE EXPRESSIONS ////////////////////////////
 %type with {With*}
 %type wqlist {With*}
-%destructor with {sqlWithDelete(pParse->db, $$);}
-%destructor wqlist {sqlWithDelete(pParse->db, $$);}
+%destructor with {sqlWithDelete($$);}
+%destructor wqlist {sqlWithDelete($$);}
 
 with(A) ::= . {A = 0;}
 with(A) ::= WITH wqlist(W).              { A = W; }

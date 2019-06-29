@@ -82,7 +82,7 @@ sql_materialize_view(struct Parse *parse, const char *name, struct Expr *where,
 	struct SelectDest dest;
 	sqlSelectDestInit(&dest, SRT_EphemTab, cursor, ++parse->nMem);
 	sqlSelect(parse, select, &dest);
-	sql_select_delete(db, select);
+	sql_select_delete(select);
 }
 
 void
@@ -116,7 +116,7 @@ sql_table_truncate(struct Parse *parse, struct SrcList *tab_list)
 	}
 	sqlVdbeAddOp2(v, OP_Clear, space->def->id, true);
 cleanup:
-	sqlSrcListDelete(parse->db, tab_list);
+	sqlSrcListDelete(tab_list);
 	return;
 
 tarantool_error:
@@ -428,8 +428,8 @@ sql_table_delete_from(struct Parse *parse, struct SrcList *tab_list,
 	}
 
  delete_from_cleanup:
-	sqlSrcListDelete(db, tab_list);
-	sql_expr_delete(db, where, false);
+	sqlSrcListDelete(tab_list);
+	sql_expr_delete(where, false);
 }
 
 void

@@ -482,7 +482,7 @@ create_table_def_destroy(struct create_table_def *table_def)
 		return;
 	struct fk_constraint_parse *fk;
 	rlist_foreach_entry(fk, &table_def->new_fkey, link)
-		sql_expr_list_delete(sql_get(), fk->selfref_cols);
+		sql_expr_list_delete(fk->selfref_cols);
 }
 
 #endif /* TARANTOOL_BOX_SQL_PARSE_DEF_H_INCLUDED */

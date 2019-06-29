@@ -149,14 +149,14 @@ sql_exec(sql * db,	/* The database on which the SQL executes */
 			}
 		}
 
-		sqlDbFree(db, azCols);
+		sql_free(azCols);
 		azCols = 0;
 	}
 
  exec_out:
 	if (pStmt)
 		sqlVdbeFinalize((Vdbe *) pStmt);
-	sqlDbFree(db, azCols);
+	sql_free(azCols);
 
 	assert(rc == 0);
 	return rc;

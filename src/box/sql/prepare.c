@@ -90,7 +90,7 @@ sqlPrepare(sql * db,	/* Database handle. */
 		if (zSqlCopy) {
 			sqlRunParser(&sParse, zSqlCopy);
 			sParse.zTail = &zSql[sParse.zTail - zSqlCopy];
-			sqlDbFree(db, zSqlCopy);
+			sql_free(zSqlCopy);
 		} else {
 			sParse.zTail = &zSql[nBytes];
 		}
@@ -170,7 +170,7 @@ sqlPrepare(sql * db,	/* Database handle. */
 	while (sParse.pTriggerPrg) {
 		TriggerPrg *pT = sParse.pTriggerPrg;
 		sParse.pTriggerPrg = pT->pNext;
-		sqlDbFree(db, pT);
+		sql_free(pT);
 	}
 
  end_prepare:
@@ -252,19 +252,18 @@ sql_parser_destroy(Parse *parser)
 {
 	assert(parser != NULL);
 	assert(!parser->parse_only || parser->pVdbe == NULL);
-	sql *db = parser->db;
-	sqlDbFree(db, parser->aLabel);
-	sql_expr_list_delete(db, parser->pConstExpr);
+	sql_free(parser->aLabel);
+	sql_expr_list_delete(parser->pConstExpr);
 	create_table_def_destroy(&parser->create_table_def);
 	switch (parser->parsed_ast_type) {
 	case AST_TYPE_SELECT:
-		sql_select_delete(db, parser->parsed_ast.select);
+		sql_select_delete(parser->parsed_ast.select);
 		break;
 	case AST_TYPE_EXPR:
-		sql_expr_delete(db, parser->parsed_ast.expr, false);
+		sql_expr_delete(parser->parsed_ast.expr, false);
 		break;
 	case AST_TYPE_TRIGGER:
-		sql_trigger_delete(db, parser->parsed_ast.trigger);
+		sql_trigger_delete(parser->parsed_ast.trigger);
 		break;
 	default:
 		assert(parser->parsed_ast_type == AST_TYPE_UNDEFINED);

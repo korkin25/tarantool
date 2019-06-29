@@ -103,22 +103,22 @@ struct SortCtx {
  * itself only if bFree is true.
  */
 static void
-clearSelect(sql * db, Select * p, int bFree)
+clearSelect(Select * p, int bFree)
 {
 	while (p) {
 		Select *pPrior = p->pPrior;
-		sql_expr_list_delete(db, p->pEList);
-		sqlSrcListDelete(db, p->pSrc);
-		sql_expr_delete(db, p->pWhere, false);
-		sql_expr_list_delete(db, p->pGroupBy);
-		sql_expr_delete(db, p->pHaving, false);
-		sql_expr_list_delete(db, p->pOrderBy);
-		sql_expr_delete(db, p->pLimit, false);
-		sql_expr_delete(db, p->pOffset, false);
+		sql_expr_list_delete(p->pEList);
+		sqlSrcListDelete(p->pSrc);
+		sql_expr_delete(p->pWhere, false);
+		sql_expr_list_delete(p->pGroupBy);
+		sql_expr_delete(p->pHaving, false);
+		sql_expr_list_delete(p->pOrderBy);
+		sql_expr_delete(p->pLimit, false);
+		sql_expr_delete(p->pOffset, false);
 		if (p->pWith)
-			sqlWithDelete(db, p->pWith);
+			sqlWithDelete(p->pWith);
 		if (bFree)
-			sqlDbFree(db, p);
+			sql_free(p);
 		p = pPrior;
 		bFree = 1;
 	}
@@ -198,7 +198,7 @@ sqlSelectNew(Parse * pParse,	/* Parsing context */
 	assert(pOffset == 0 || pLimit != 0 || pParse->is_aborted
 	       || db->mallocFailed != 0);
 	if (db->mallocFailed) {
-		clearSelect(db, pNew, pNew != &standin);
+		clearSelect(pNew, pNew != &standin);
 		pNew = 0;
 	} else {
 		assert(pNew->pSrc != 0 || pParse->is_aborted);
@@ -221,10 +221,10 @@ sqlSelectSetName(Select * p, const char *zName)
 #endif
 
 void
-sql_select_delete(sql *db, Select *p)
+sql_select_delete(Select *p)
 {
 	if (p)
-		clearSelect(db, p, 1);
+		clearSelect(p, 1);
 }
 
 int
@@ -281,7 +281,7 @@ src_list_append_unique(struct sql *db, struct SrcList *list,
 	struct SrcList *new_list =
 		sql_src_list_enlarge(db, list, 1, list->nSrc);
 	if (new_list == NULL) {
-		sqlSrcListDelete(db, list);
+		sqlSrcListDelete(list);
 		return NULL;
 	}
 	list = new_list;
@@ -290,7 +290,7 @@ src_list_append_unique(struct sql *db, struct SrcList *list,
 	if (pItem->zName == NULL) {
 		diag_set(OutOfMemory, strlen(new_name), "sqlDbStrNDup",
 			 "pItem->zName");
-		sqlSrcListDelete(db, list);
+		sqlSrcListDelete(list);
 		return NULL;
 	}
 	return list;
@@ -326,7 +326,7 @@ sql_select_expand_from_tables(struct Select *select)
 	walker.xSelectCallback = select_collect_table_names;
 	walker.u.pSrcList = table_names;
 	if (sqlWalkSelect(&walker, select) != 0) {
-		sqlSrcListDelete(sql_get(), walker.u.pSrcList);
+		sqlSrcListDelete(walker.u.pSrcList);
 		return NULL;
 	}
 	return walker.u.pSrcList;
@@ -1429,7 +1429,7 @@ sql_key_info_unref(struct sql_key_info *key_info)
 	if (--key_info->refs == 0) {
 		if (key_info->key_def != NULL)
 			key_def_delete(key_info->key_def);
-		sqlDbFree(key_info->db, key_info);
+		sql_free(key_info);
 	}
 }
 
@@ -1458,7 +1458,7 @@ sql_expr_list_to_key_info(struct Parse *parse, struct ExprList *list, int start)
 		struct coll *unused_coll;
 		if (sql_expr_coll(parse, item->pExpr, &unused, &id,
 				  &unused_coll) != 0) {
-			sqlDbFree(parse->db, key_info);
+			sql_free(key_info);
 			return NULL;
 		}
 		part->coll_id = id;
@@ -2449,7 +2449,7 @@ generateWithRecursiveQuery(Parse * pParse,	/* Parsing context */
 	sqlVdbeResolveLabel(v, addrBreak);
 
  end_of_recursive_query:
-	sql_expr_list_delete(pParse->db, p->pOrderBy);
+	sql_expr_list_delete(p->pOrderBy);
 	p->pOrderBy = pOrderBy;
 	p->pLimit = pLimit;
 	p->pOffset = pOffset;
@@ -2753,7 +2753,7 @@ multiSelect(Parse * pParse,	/* Parsing context */
 				/* Query flattening in sqlSelect() might refill p->pOrderBy.
 				 * Be sure to delete p->pOrderBy, therefore, to avoid a memory leak.
 				 */
-				sql_expr_list_delete(db, p->pOrderBy);
+				sql_expr_list_delete(p->pOrderBy);
 				pDelete = p->pPrior;
 				p->pPrior = pPrior;
 				p->pOrderBy = 0;
@@ -2763,7 +2763,7 @@ multiSelect(Parse * pParse,	/* Parsing context */
 							     pPrior->
 							     nSelectRow);
 				}
-				sql_expr_delete(db, p->pLimit, false);
+				sql_expr_delete(p->pLimit, false);
 				p->pLimit = pLimit;
 				p->pOffset = pOffset;
 				p->iLimit = 0;
@@ -2868,7 +2868,7 @@ multiSelect(Parse * pParse,	/* Parsing context */
 				p->pPrior = pPrior;
 				if (p->nSelectRow > pPrior->nSelectRow)
 					p->nSelectRow = pPrior->nSelectRow;
-				sql_expr_delete(db, p->pLimit, false);
+				sql_expr_delete(p->pLimit, false);
 				p->pLimit = pLimit;
 				p->pOffset = pOffset;
 
@@ -2953,7 +2953,7 @@ multiSelect(Parse * pParse,	/* Parsing context */
  multi_select_end:
 	pDest->iSdst = dest.iSdst;
 	pDest->nSdst = dest.nSdst;
-	sql_select_delete(db, pDelete);
+	sql_select_delete(pDelete);
 	return rc;
 }
 
@@ -3372,9 +3372,9 @@ multiSelectOrderBy(Parse * pParse,	/* Parsing context */
 	} else {
 		regLimitA = regLimitB = 0;
 	}
-	sql_expr_delete(db, p->pLimit, false);
+	sql_expr_delete(p->pLimit, false);
 	p->pLimit = 0;
-	sql_expr_delete(db, p->pOffset, false);
+	sql_expr_delete(p->pOffset, false);
 	p->pOffset = 0;
 
 	regAddrA = ++pParse->nMem;
@@ -3534,9 +3534,8 @@ multiSelectOrderBy(Parse * pParse,	/* Parsing context */
 	/* Reassembly the compound query so that it will be freed correctly
 	 * by the calling function
 	 */
-	if (p->pPrior) {
-		sql_select_delete(db, p->pPrior);
-	}
+	if (p->pPrior)
+		sql_select_delete(p->pPrior);
 	p->pPrior = pPrior;
 	pPrior->pNext = p;
 
@@ -3594,7 +3593,7 @@ substExpr(Parse * pParse,	/* Report errors here */
 					    pExpr->iRightJoinTable;
 					pNew->flags |= EP_FromJoin;
 				}
-				sql_expr_delete(db, pExpr, false);
+				sql_expr_delete(pExpr, false);
 				pExpr = pNew;
 			}
 		}
@@ -4039,8 +4038,8 @@ flattenSubquery(Parse * pParse,		/* Parsing context */
 	/* Delete the transient table structure associated with the
 	 * subquery
 	 */
-	sqlDbFree(db, pSubitem->zName);
-	sqlDbFree(db, pSubitem->zAlias);
+	sql_free(pSubitem->zName);
+	sql_free(pSubitem->zAlias);
 	pSubitem->zName = 0;
 	pSubitem->zAlias = 0;
 	pSubitem->pSelect = 0;
@@ -4113,7 +4112,7 @@ flattenSubquery(Parse * pParse,		/* Parsing context */
 		 * outer query.
 		 */
 		for (i = 0; i < nSubSrc; i++) {
-			sqlIdListDelete(db, pSrc->a[i + iFrom].pUsing);
+			sqlIdListDelete(pSrc->a[i + iFrom].pUsing);
 			assert(pSrc->a[i + iFrom].fg.isTabFunc == 0);
 			pSrc->a[i + iFrom] = pSubSrc->a[i];
 			memset(&pSubSrc->a[i], 0, sizeof(pSubSrc->a[i]));
@@ -4211,7 +4210,7 @@ flattenSubquery(Parse * pParse,		/* Parsing context */
 	/* Finially, delete what is left of the subquery and return
 	 * success.
 	 */
-	sql_select_delete(db, pSub1);
+	sql_select_delete(pSub1);
 
 #ifdef SQL_DEBUG
 	if (sqlSelectTrace & 0x100) {
@@ -5023,7 +5022,7 @@ selectExpander(Walker * pWalker, Select * p)
 							}
 							pX->bSpanIsTab = 1;
 						}
-						sqlDbFree(db, zToFree);
+						sql_free(zToFree);
 					}
 				}
 				if (!tableSeen) {
@@ -5039,7 +5038,7 @@ selectExpander(Walker * pWalker, Select * p)
 				}
 			}
 		}
-		sql_expr_list_delete(db, pEList);
+		sql_expr_list_delete(pEList);
 		p->pEList = pNew;
 	}
 #if SQL_MAX_COLUMN
@@ -5473,7 +5472,7 @@ sqlSelect(Parse * pParse,		/* The parser context */
 		/* If ORDER BY makes no difference in the output then neither does
 		 * DISTINCT so it can be removed too.
 		 */
-		sql_expr_list_delete(db, p->pOrderBy);
+		sql_expr_list_delete(p->pOrderBy);
 		p->pOrderBy = 0;
 		p->selFlags &= ~SF_Distinct;
 	}
@@ -6319,7 +6318,7 @@ sqlSelect(Parse * pParse,		/* The parser context */
 				    sqlWhereBegin(pParse, pTabList, pWhere,
 						      pMinMax, 0, flag, 0);
 				if (pWInfo == 0) {
-					sql_expr_list_delete(db, pDel);
+					sql_expr_list_delete(pDel);
 					goto select_end;
 				}
 				updateAccumulator(pParse, &sAggInfo);
@@ -6335,7 +6334,7 @@ sqlSelect(Parse * pParse,		/* The parser context */
 				}
 				sqlWhereEnd(pWInfo);
 				finalizeAggFunctions(pParse, &sAggInfo);
-				sql_expr_list_delete(db, pDel);
+				sql_expr_list_delete(pDel);
 			}
 
 			sSort.pOrderBy = 0;
@@ -6385,8 +6384,8 @@ sqlSelect(Parse * pParse,		/* The parser context */
 		generateColumnNames(pParse, pTabList, pEList);
 	}
 
-	sqlDbFree(db, sAggInfo.aCol);
-	sqlDbFree(db, sAggInfo.aFunc);
+	sql_free(sAggInfo.aCol);
+	sql_free(sAggInfo.aFunc);
 #ifdef SQL_DEBUG
 	SELECTTRACE(1, pParse, p, ("end processing\n"));
 	pParse->nSelectIndent--;

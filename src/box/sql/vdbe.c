@@ -240,7 +240,7 @@ allocateCursor(
 
 	assert(iCur>=0 && iCur<p->nCursor);
 	if (p->apCsr[iCur]) { /*OPTIMIZATION-IF-FALSE*/
-		sqlVdbeFreeCursor(p, p->apCsr[iCur]);
+		sqlVdbeFreeCursor(p->apCsr[iCur]);
 		p->apCsr[iCur] = 0;
 	}
 	if (sqlVdbeMemClearAndResize(pMem, nByte) == 0) {
@@ -3167,7 +3167,7 @@ case OP_OpenPseudo: {
  */
 case OP_Close: {
 	assert(pOp->p1>=0 && pOp->p1<p->nCursor);
-	sqlVdbeFreeCursor(p, p->apCsr[pOp->p1]);
+	sqlVdbeFreeCursor(p->apCsr[pOp->p1]);
 	p->apCsr[pOp->p1] = 0;
 	break;
 }
@@ -3568,7 +3568,7 @@ case OP_Found: {        /* jump, in3 */
 	}
 	rc = sqlCursorMovetoUnpacked(pC->uc.pCursor, pIdxKey, &res);
 	if (pFree != NULL)
-		sqlDbFree(db, pFree);
+		sql_free(pFree);
 	if (rc != 0)
 		goto abort_due_to_error;
 	pC->seekResult = res;
@@ -4109,7 +4109,7 @@ case OP_SorterNext: {  /* jump */
 	pC = p->apCsr[pOp->p1];
 	assert(isSorter(pC));
 	res = 0;
-	if (sqlVdbeSorterNext(db, pC, &res) != 0)
+	if (sqlVdbeSorterNext(pC, &res) != 0)
 		goto abort_due_to_error;
 	goto next_tail;
 case OP_PrevIfOpen:    /* jump */
@@ -4568,7 +4568,7 @@ case OP_ResetSorter: {
 	pC = p->apCsr[pOp->p1];
 	assert(pC!=0);
 	if (isSorter(pC)) {
-		sqlVdbeSorterReset(db, pC->uc.pSorter);
+		sqlVdbeSorterReset(pC->uc.pSorter);
 	} else {
 		assert(pC->eCurType==CURTYPE_TARANTOOL);
 		assert(pC->uc.pCursor->curFlags & BTCF_TEphemCursor);
@@ -4628,7 +4628,7 @@ case OP_RenameTable: {
 			goto abort_due_to_error;
 		trigger = next_trigger;
 	}
-	sqlDbFree(db, (void*)zOldTableName);
+	sql_free((void*)zOldTableName);
 	break;
 }
 
@@ -5113,7 +5113,7 @@ case OP_Init: {          /* jump */
 	 * received from the parent.
 	 */
 	if (p->pFrame == NULL && sql_vdbe_prepare(p) != 0) {
-		sqlDbFree(db, p);
+		sql_free(p);
 		rc = -1;
 		break;
 	}
