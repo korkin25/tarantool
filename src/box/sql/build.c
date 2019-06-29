@@ -1514,7 +1514,7 @@ vdbe_emit_stat_space_clear(struct Parse *parse, const char *stat_table_name,
 	assert(idx_name != NULL || table_name != NULL);
 	struct sql *db = parse->db;
 	assert(!db->mallocFailed);
-	struct SrcList *src_list = sql_src_list_new(db);
+	struct SrcList *src_list = sql_src_list_new();
 	if (src_list == NULL) {
 		parse->is_aborted = true;
 		return;
@@ -2878,14 +2878,11 @@ sql_src_list_enlarge(struct SrcList *src_list, int new_slots, int start_idx)
 }
 
 struct SrcList *
-sql_src_list_new(struct sql *db)
+sql_src_list_new()
 {
-	struct SrcList *src_list = sqlDbMallocRawNN(db, sizeof(struct SrcList));
-	if (src_list == NULL) {
-		diag_set(OutOfMemory, sizeof(struct SrcList),
-			 "sqlDbMallocRawNN", "src_list");
+	struct SrcList *src_list = sqlMalloc(sizeof(struct SrcList));
+	if (src_list == NULL)
 		return NULL;
-	}
 	src_list->nAlloc = 1;
 	src_list->nSrc = 1;
 	memset(&src_list->a[0], 0, sizeof(src_list->a[0]));
@@ -2898,7 +2895,7 @@ sql_src_list_append(struct sql *db, struct SrcList *list,
 		    struct Token *name_token)
 {
 	if (list == NULL) {
-		list = sql_src_list_new(db);
+		list = sql_src_list_new();
 		if (list == NULL)
 			return NULL;
 	} else {

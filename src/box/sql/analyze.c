@@ -197,12 +197,12 @@ sampleClear(Stat4Sample * p)
 /* Initialize the BLOB value of a sample key.
  */
 static void
-sampleSetKey(sql * db, Stat4Sample * p, int n, const u8 * pData)
+sampleSetKey(Stat4Sample * p, int n, const u8 * pData)
 {
 	assert(db != 0);
 	if (p->nKey)
 		sql_free(p->aKey);
-	p->aKey = sqlDbMallocRawNN(db, n);
+	p->aKey = sqlMalloc(n);
 	if (p->aKey) {
 		p->nKey = n;
 		memcpy(p->aKey, pData, n);
@@ -223,7 +223,7 @@ sampleCopy(Stat4Accum * p, Stat4Sample * pTo, Stat4Sample * pFrom)
 	memcpy(pTo->anEq, pFrom->anEq, sizeof(tRowcnt) * (p->nCol+1));
 	memcpy(pTo->anLt, pFrom->anLt, sizeof(tRowcnt) * (p->nCol+1));
 	memcpy(pTo->anDLt, pFrom->anDLt, sizeof(tRowcnt) * (p->nCol+1));
-	sampleSetKey(p->db, pTo, pFrom->nKey, pFrom->aKey);
+	sampleSetKey(pTo, pFrom->nKey, pFrom->aKey);
 }
 
 /*
@@ -580,7 +580,7 @@ statPush(sql_context * context, int argc, sql_value ** argv)
 		}
 	}
 	p->nRow++;
-	sampleSetKey(p->db, &p->current, sql_value_bytes(argv[2]),
+	sampleSetKey(&p->current, sql_value_bytes(argv[2]),
 		     sql_value_blob(argv[2]));
 	p->current.iHash = p->iPrn = p->iPrn * 1103515245 + 12345;
 	{
