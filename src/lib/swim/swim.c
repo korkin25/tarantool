@@ -327,6 +327,19 @@ struct swim_member {
 	 * allow other members to learn the dead status.
 	 */
 	int status_ttd;
+	/**
+	 * Time To Live. When a member is dead, it can't be
+	 * deleted from the member table immediately. Otherwise
+	 * there is a real possibility, that other members, not
+	 * aware of the death, will disseminate its alive state
+	 * back via anti-entropy. TTL is a way to keep a dead
+	 * member in the member table until the whole cluster
+	 * knows about the death with a very hight probability,
+	 * almost 100%. Such members are stored in a limbo queue
+	 * for TTL round steps, and deleted afterwards. All the
+	 * same is fair for 'left' members as well.
+	 */
+	int ttl;
 	/** Arbitrary user data, disseminated on each change. */
 	char *payload;
 	/** Payload size, in bytes. */
@@ -370,6 +383,13 @@ struct swim_member {
 	 * time.
 	 */
 	struct rlist in_dissemination_queue;
+	/**
+	 * Members sentenced for deletion are stored in a limbo
+	 * queue. They are kept here in order to wait until the
+	 * whole cluster knows about their deletion, and nobody
+	 * will try to resurrect them via anti-entropy.
+	 */
+	struct rlist in_limbo_queue;
 	/**
 	 * Each time a member is updated, or created, or dropped,
 	 * it is added to an event queue. Members from this queue
@@ -514,6 +534,17 @@ struct swim {
 	 */
 	struct rlist dissemination_queue;
 	/**
+	 * Queue of members waiting for their deletion. The
+	 * members 'dead' and 'left' can't be deleted immediately
+	 * after their new status is discovered and event about
+	 * that is disseminated, or otherwise they may be
+	 * resurrected back by those who didn't know about their
+	 * death, via anti-entropy. Here the members wait until
+	 * the whole cluster is likely to know about their death,
+	 * and only then are deleted.
+	 */
+	struct rlist limbo_queue;
+	/**
 	 * Queue of updated, new, and dropped members to deliver
 	 * the events to triggers. Dropped members are also kept
 	 * here until they are handled by a trigger.
@@ -612,6 +643,14 @@ swim_wait_ack(struct swim *swim, struct swim_member *member,
 static inline void
 swim_register_event(struct swim *swim, struct swim_member *member)
 {
+	/*
+	 * If a member, scheduled for deletion, got an event, then
+	 * it is alive. Somebody noticed an ack/ping from him, or
+	 * got its new payload, or anything. Deletion of such
+	 * members shall be canceled.
+	 */
+	if (! rlist_empty(&member->in_limbo_queue))
+		rlist_del_entry(member, in_limbo_queue);
 	if (rlist_empty(&member->in_dissemination_queue)) {
 		rlist_add_tail_entry(&swim->dissemination_queue, member,
 				     in_dissemination_queue);
@@ -815,6 +854,7 @@ swim_member_delete(struct swim_member *member)
 
 	/* Dissemination component. */
 	assert(rlist_empty(&member->in_dissemination_queue));
+	assert(rlist_empty(&member->in_limbo_queue));
 
 	swim_member_unref(member);
 }
@@ -847,8 +887,38 @@ swim_member_new(const struct sockaddr_in *addr, const struct tt_uuid *uuid,
 
 	/* Dissemination component. */
 	rlist_create(&member->in_dissemination_queue);
+	rlist_create(&member->in_limbo_queue);
 
 	return member;
+}
+
+/** Schedule member deletion after some number of steps. */
+static void
+swim_send_member_to_limbo(struct swim *swim, struct swim_member *member)
+{
+	assert(rlist_empty(&member->in_dissemination_queue));
+	assert(rlist_empty(&member->in_limbo_queue));
+	rlist_add_entry(&swim->limbo_queue, member, in_limbo_queue);
+	int size = mh_size(swim->members);
+	/*
+	 * Always linear number of steps delay would be perfect in
+	 * terms of protection against sudden resurrection of dead
+	 * members via anti-entropy. Even more perfect is when GC
+	 * is off. But these values would lead to a problem when
+	 * too many round steps are spent on sending pings to
+	 * already 100% dead members, and when they occupy too big
+	 * part of anti-entropy section. As a compromise here the
+	 * linear TTL is used for small clusters, and a value of
+	 * the same order as event dissemination time for big
+	 * clusters, but with a much bigger constant.
+	 *
+	 * According to simulations, in a cluster of size 250 a
+	 * death event is disseminated in ~13 steps. Rarely for
+	 * ~15 steps. But extremely rare for ~30-40 steps.
+	 * Log2(250) is ~8, so 10 * log(N) covers all these cases,
+	 * even super rare ones.
+	 */
+	member->ttl = MIN(size, 10 * log2(size));
 }
 
 /**
@@ -873,6 +943,7 @@ swim_delete_member(struct swim *swim, struct swim_member *member)
 	/* Dissemination component. */
 	swim_on_member_update(swim, member, SWIM_EV_DROP);
 	rlist_del_entry(member, in_dissemination_queue);
+	rlist_del_entry(member, in_limbo_queue);
 
 	swim_member_delete(member);
 }
@@ -1165,6 +1236,22 @@ swim_encode_round_msg(struct swim *swim)
 }
 
 /**
+ * Drop members, whose TTL is expired. It should be done once
+ * after each round step.
+ */
+static void
+swim_decrease_member_ttl(struct swim *swim)
+{
+	struct swim_member *member, *tmp;
+	rlist_foreach_entry_safe(member, &swim->limbo_queue,
+				 in_limbo_queue, tmp) {
+		assert(member->ttl > 0);
+		if (--member->ttl == 0)
+			swim_delete_member(swim, member);
+	}
+}
+
+/**
  * Decrement TTDs of all events. It is done after each round step.
  * Note, since we decrement TTD of all events, even those which
  * have not been actually encoded and sent, if there are more
@@ -1191,7 +1278,7 @@ swim_decrease_event_ttd(struct swim *swim)
 			rlist_del_entry(member, in_dissemination_queue);
 			swim_cached_round_msg_invalidate(swim);
 			if (member->status == MEMBER_LEFT)
-				swim_delete_member(swim, member);
+				swim_send_member_to_limbo(swim, member);
 		}
 	}
 }
@@ -1272,6 +1359,7 @@ swim_complete_step(struct swim_task *task,
 			 * sections.
 			 */
 			swim_wait_ack(swim, m, false);
+			swim_decrease_member_ttl(swim);
 			swim_decrease_event_ttd(swim);
 		}
 	}
@@ -1443,8 +1531,10 @@ swim_check_acks(struct ev_loop *loop, struct ev_timer *t, int events)
 			break;
 		case MEMBER_DEAD:
 			if (m->unacknowledged_pings >= NO_ACKS_TO_GC &&
-			    swim->gc_mode == SWIM_GC_ON && m->status_ttd == 0) {
-				swim_delete_member(swim, m);
+			    swim->gc_mode == SWIM_GC_ON &&
+			    m->status_ttd == 0 &&
+			    rlist_empty(&m->in_limbo_queue)) {
+				swim_send_member_to_limbo(swim, m);
 				continue;
 			}
 			break;
@@ -1902,6 +1992,7 @@ swim_new(uint64_t generation)
 
 	/* Dissemination component. */
 	rlist_create(&swim->dissemination_queue);
+	rlist_create(&swim->limbo_queue);
 	rlist_create(&swim->on_member_event);
 	stailq_create(&swim->event_queue);
 	swim->event_handler = fiber_new("SWIM event handler",
@@ -2215,6 +2306,7 @@ swim_delete(struct swim *swim)
 		if (! heap_node_is_stray(&m->in_wait_ack_heap))
 			wait_ack_heap_delete(&swim->wait_ack_heap, m);
 		rlist_del_entry(m, in_dissemination_queue);
+		rlist_del_entry(m, in_limbo_queue);
 		swim_member_delete(m);
 	}
 	/*

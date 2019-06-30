@@ -115,7 +115,7 @@ swim_test_uuid_update(void)
 	is(swim_cluster_update_uuid(cluster, 0, &new_uuid), 0, "UUID update");
 	is(swim_member_status(swim_member_by_uuid(s, &old_uuid)), MEMBER_LEFT,
 	   "old UUID is marked as 'left'");
-	swim_run_for(5);
+	swim_run_for(7);
 	is(swim_member_by_uuid(s, &old_uuid), NULL,
 	   "old UUID is dropped after a while");
 	ok(swim_cluster_is_fullmesh(cluster), "dropped everywhere");
@@ -589,7 +589,7 @@ swim_test_quit(void)
 	   "S3 sees S1 as left");
 	is(swim_cluster_member_status(cluster, 1, 0), swim_member_status_MAX,
 	   "S2 does not see S1 at all");
-	swim_run_for(2);
+	swim_run_for(3);
 	is(swim_cluster_member_status(cluster, 2, 0), swim_member_status_MAX,
 	   "after more time S1 is dropped from S3");
 	is(swim_cluster_member_status(cluster, 1, 0), swim_member_status_MAX,
@@ -1061,7 +1061,7 @@ swim_test_triggers(void)
 	is(tctx.ctx.events, SWIM_EV_NEW_STATUS, "status dead");
 
 	fail_if(swim_cluster_wait_status(cluster, 0, 1,
-					 swim_member_status_MAX, 2) != 0);
+					 swim_member_status_MAX, 4) != 0);
 	swim_cluster_run_triggers(cluster);
 	is(tctx.counter, 6, "drop fired a trigger");
 	is(tctx.ctx.events, SWIM_EV_DROP, "status dropped");
