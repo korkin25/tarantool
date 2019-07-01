@@ -22,3 +22,13 @@ perf_tpcc:
     - docker_perf
   script:
     - ${GITLAB_MAKE} perf_tpcc
+
+perf_sysbench:
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  variables:
+    TIME: 100
+  script:
+    - ${GITLAB_MAKE} perf_sysbench
