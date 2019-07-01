@@ -2,6 +2,7 @@ stages:
   - test
   - deploy
 
+
 variables:
   GITLAB_MAKE: "make -f .gitlab.mk"
   IMAGE_PERF: "${CI_REGISTRY}/${CI_PROJECT_PATH}/perf/ubuntu-bionic:perf_master"
