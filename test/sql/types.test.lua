@@ -236,8 +236,8 @@ box.execute('SELECT \'9223372036854\' + 1;')
 box.execute('SELECT ?', {true})
 
 --
--- gh-4189: Update throws an error when executed on a tuple with
--- types unknown to SQL.
+-- gh-4189: make sure that update doesn't throw an error if format
+-- of table features map/array field types.
 --
 format = {}
 format[1] = {type = 'integer', name = 'I'}
