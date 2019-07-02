@@ -186,6 +186,8 @@ sql_finish_coding(struct Parse *parse_context)
 		sqlVdbeChangeP2(v, 0, last_instruction);
 		sqlVdbeGoto(v, 1);
 	}
+	/* Disable lookaside. */
+	db->lookaside.bDisable = 100000;
 	/* Get the VDBE program ready for execution. */
 	if (!parse_context->is_aborted && !db->mallocFailed) {
 		assert(parse_context->iCacheLevel == 0);
