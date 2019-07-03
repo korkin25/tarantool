@@ -23,6 +23,14 @@ box.execute("CREATE TABLE t3 (s1 INTEGER PRIMARY KEY AUTOINCREMENT, s2 INTEGER, 
 ---
 - row_count: 1
 ...
+box.execute("CREATE TABLE t4 (s1 INTEGER PRIMARY KEY AUTOINCREMENT, s2 INTEGER, CHECK (s1 < 10));");
+---
+- row_count: 1
+...
+box.execute("CREATE TABLE t5 (s1 INTEGER PRIMARY KEY AUTOINCREMENT, s2 INTEGER, CHECK (s1 <> 19));");
+---
+- row_count: 1
+...
 box.execute("insert into t1 values (18, null);")
 ---
 - row_count: 1
@@ -55,6 +63,22 @@ box.execute("insert into t3(s2) values (null)")
 ---
 - error: 'Check constraint failed ''CK_CONSTRAINT_1_T3'': s1 < 10'
 ...
+box.execute("insert into t4 values (9, null)")
+---
+- row_count: 1
+...
+box.execute("insert into t4 values (null, null)")
+---
+- error: 'Check constraint failed ''CK_CONSTRAINT_1_T4'': s1 < 10'
+...
+box.execute("INSERT INTO t5 VALUES (18, NULL);")
+---
+- row_count: 1
+...
+box.execute("INSERT INTO t5 SELECT NULL, NULL FROM t5;")
+---
+- error: 'Check constraint failed ''CK_CONSTRAINT_1_T5'': s1 <> 19'
+...
 box.execute("DROP TABLE t1")
 ---
 - row_count: 1
@@ -64,6 +88,14 @@ box.execute("DROP TABLE t2")
 - row_count: 1
 ...
 box.execute("DROP TABLE t3")
+---
+- row_count: 1
+...
+box.execute("DROP TABLE t4")
+---
+- row_count: 1
+...
+box.execute("DROP TABLE t5")
 ---
 - row_count: 1
 ...
