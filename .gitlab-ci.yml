@@ -1,11 +1,14 @@
 stages:
   - test
   - deploy
+  - cleanup
 
 variables:
   IMAGE_TEST: "${CI_REGISTRY}/${CI_PROJECT_PATH}/testing/debian-stretch:latest"
   IMAGE_TEST_LTO: "${CI_REGISTRY}/${CI_PROJECT_PATH}/testing/debian-buster:latest"
   GITLAB_MAKE: "make -f .gitlab.mk"
+  IMAGE_PERF: "${CI_REGISTRY}/${CI_PROJECT_PATH}/perf/ubuntu-bionic:perf_master"
+  IMAGE_PERF_BUILT: "${CI_REGISTRY}/${CI_PROJECT_PATH}/perf_tmp/ubuntu-bionic:perf_${CI_COMMIT_SHORT_SHA}"
 
 # Tests
 
@@ -135,6 +138,225 @@ freebsd_12_release:
     - ${GITLAB_MAKE} vms_test_freebsd
   after_script:
     - ${GITLAB_MAKE} vms_shutdown
+
+# Perf prepare
+
+perf_bootstrap:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+      - /^.*-perflong$/
+  stage: test
+  tags:
+    - perf
+  script:
+    - ${GITLAB_MAKE} docker_perf_bootstrap
+
+# Perf sysbench
+
+perf_sysbench:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  variables:
+    TIME: 100
+  script:
+    - ${GITLAB_MAKE} perf_sysbench
+
+perf_sysbench_1..3:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  variables:
+    TIME: 300
+  script:
+    - ${GITLAB_MAKE} perf_sysbench
+
+# Perf tpcc 1 *perf/*perflong + 2 *perflong
+
+perf_tpcc:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_tpcc
+
+perf_tpcc_1:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_tpcc
+
+perf_tpcc_2:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_tpcc
+
+# Perf ycsb
+
+perf_ycsb:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  variables:
+    RUNS: 1
+  script:
+    - ${GITLAB_MAKE} perf_ycsb
+
+perf_ycsb_1..5:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  variables:
+    RUNS: 5
+  script:
+    - ${GITLAB_MAKE} perf_ycsb
+
+# Perf nosqlbench 1 *perf/*perflong + 4 *perflong
+
+perf_nosqlbench:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_nosqlbench
+
+perf_nosqlbench_1:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_nosqlbench
+
+perf_nosqlbench_2:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_nosqlbench
+
+perf_nosqlbench_3:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_nosqlbench
+
+perf_nosqlbench_4:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_nosqlbench
+
+# Perf cbench 1 *perf/*perflong + 2 *perflong
+
+perf_cbench:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_cbench
+
+perf_cbench_1:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_cbench
+
+perf_cbench_2:
+  only:
+    refs:
+      - /^.*-perflong$/
+  image: ${IMAGE_PERF_BUILT}
+  stage: deploy
+  tags:
+    - docker_perf
+  script:
+    - ${GITLAB_MAKE} perf_cbench
+
+# Remove the docker's performance temporary image
+remove_images:
+  only:
+    refs:
+      - master
+      - /^.*-perf$/
+      - /^.*-perflong$/
+  stage: cleanup
+  when: always
+  tags:
+    - perf
+  script:
+    - ${GITLAB_MAKE} docker_perf_tmp_image_remove
 
 # Packs
 
